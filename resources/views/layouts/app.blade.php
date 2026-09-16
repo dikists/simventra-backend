@@ -10,8 +10,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
+    <script>
+        // Restore desktop collapsed sidebar early to prevent flicker
+        if (localStorage.getItem('simventra_sidebar_collapsed') === 'true' && window.innerWidth > 768) {
+            document.documentElement.classList.add('sidebar-collapsed');
+        }
+    </script>
 </head>
 <body>
+
+<!-- Mobile Sidebar Backdrop -->
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
 <!-- ======================================================
      SIDEBAR
@@ -157,7 +166,7 @@
             <div style="width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#556ee6,#6f42c1);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0;">
                 {{ substr(auth()->user()->name, 0, 1) }}
             </div>
-            <div style="flex:1;min-width:0;">
+            <div class="sm-hide-collapsed" style="flex:1;min-width:0;">
                 <div style="font-size:12.5px;font-weight:600;color:rgba(255,255,255,.85);truncate;">{{ Str::limit(auth()->user()->name, 18) }}</div>
                 <div style="font-size:10.5px;color:rgba(255,255,255,.35);">{{ auth()->user()->roles->first()?->name ?? 'User' }}</div>
             </div>
@@ -274,18 +283,211 @@
 
 @livewireScripts
 <script>
-    // Sidebar toggle
-    document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
-        const s = document.getElementById('sidebar');
-        const m = document.querySelector('.main-wrapper');
-        s.style.transform = s.style.transform === 'translateX(-270px)' ? '' : 'translateX(-270px)';
-    });
+    (function() {
+        const toggleBtn = document.getElementById('sidebar-toggle');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        const isMobile = () => window.innerWidth <= 768;
+
+        // Sinkronisasi state dari localStorage
+        if (localStorage.getItem('simventra_sidebar_collapsed') === 'true' && !isMobile()) {
+            document.documentElement.classList.add('sidebar-collapsed');
+            document.body.classList.add('sidebar-collapsed');
+        }
+
+        toggleBtn?.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (isMobile()) {
+                document.body.classList.toggle('sidebar-mobile-open');
+            } else {
+                const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
+                document.documentElement.classList.toggle('sidebar-collapsed', isCollapsed);
+                localStorage.setItem('simventra_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+            }
+        });
+
+        // Tutup sidebar di mobile saat backdrop diklik
+        backdrop?.addEventListener('click', () => {
+            document.body.classList.remove('sidebar-mobile-open');
+        });
+
+        // Tutup drawer di mobile saat tautan diklik
+        document.querySelectorAll('.sidebar-link').forEach(link => {
+            link.addEventListener('click', () => {
+                if (isMobile()) {
+                    document.body.classList.remove('sidebar-mobile-open');
+                }
+            });
+        });
+    })();
 </script>
 <style>
-    @media (min-width: 640px) { .sm-show { display: block !important; } }
+    /* Transisi Halus Sidebar & Content Wrapper */
+    :root {
+        --sidebar-width: 270px;
+        --sidebar-collapsed-width: 72px;
+        --topbar-height: 68px;
+    }
+
+    .sidebar {
+        transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        overflow-x: hidden !important;
+    }
+
+    .main-wrapper {
+        transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+
+    @media (min-width: 640px) {
+        .sm-show { display: block !important; }
+    }
+
+    /* Desktop: Collapsed / Mini Sidebar Mode */
+    @media (min-width: 769px) {
+        .sidebar-collapsed .sidebar {
+            width: var(--sidebar-collapsed-width) !important;
+        }
+
+        .sidebar-collapsed .main-wrapper {
+            margin-left: var(--sidebar-collapsed-width) !important;
+        }
+
+        .sidebar-collapsed .sidebar .sidebar-brand {
+            padding: 0 17px;
+            justify-content: center;
+        }
+
+        .sidebar-collapsed .sidebar .sidebar-brand-text,
+        .sidebar-collapsed .sidebar .sidebar-brand-sub {
+            display: none !important;
+        }
+
+        .sidebar-collapsed .sidebar .sidebar-section {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.08);
+            margin: 12px 14px;
+            padding: 0;
+            font-size: 0;
+            color: transparent;
+            overflow: hidden;
+        }
+
+        .sidebar-collapsed .sidebar .sidebar-link {
+            padding: 11px 0;
+            justify-content: center;
+            gap: 0;
+        }
+
+        .sidebar-collapsed .sidebar .sidebar-link span {
+            display: none !important;
+        }
+
+        .sidebar-collapsed .sidebar .sidebar-link svg {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+        }
+
+        .sidebar-collapsed .sidebar .sidebar-badge {
+            position: absolute;
+            top: 6px;
+            right: 14px;
+            width: 8px;
+            height: 8px;
+            padding: 0;
+            border-radius: 50%;
+            font-size: 0;
+        }
+
+        .sidebar-collapsed .sidebar .sidebar-footer {
+            padding: 12px 17px;
+            justify-content: center;
+        }
+
+        .sidebar-collapsed .sidebar .sidebar-footer .sm-hide-collapsed {
+            display: none !important;
+        }
+
+        /* Hover to Expand (Snacked / Metronic style) */
+        .sidebar-collapsed .sidebar:hover {
+            width: var(--sidebar-width) !important;
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.35) !important;
+            z-index: 1050;
+        }
+
+        .sidebar-collapsed .sidebar:hover .sidebar-brand {
+            padding: 0 20px;
+            justify-content: flex-start;
+        }
+
+        .sidebar-collapsed .sidebar:hover .sidebar-brand-text,
+        .sidebar-collapsed .sidebar:hover .sidebar-brand-sub {
+            display: block !important;
+        }
+
+        .sidebar-collapsed .sidebar:hover .sidebar-section {
+            height: auto;
+            background: transparent;
+            margin: 4px 0 0;
+            padding: 16px 12px 6px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .sidebar-collapsed .sidebar:hover .sidebar-link {
+            padding: 10px 14px;
+            justify-content: flex-start;
+            gap: 10px;
+        }
+
+        .sidebar-collapsed .sidebar:hover .sidebar-link span {
+            display: inline !important;
+        }
+
+        .sidebar-collapsed .sidebar:hover .sidebar-badge {
+            position: static;
+            width: auto;
+            height: auto;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-size: 10px;
+        }
+
+        .sidebar-collapsed .sidebar:hover .sidebar-footer .sm-hide-collapsed {
+            display: block !important;
+        }
+    }
+
+    /* Mobile Screens (< 768px) */
     @media (max-width: 768px) {
-        .sidebar { transform: translateX(-270px); }
-        .main-wrapper { margin-left: 0; }
+        .sidebar {
+            transform: translateX(-100%) !important;
+            width: var(--sidebar-width) !important;
+            z-index: 1050 !important;
+        }
+
+        .main-wrapper {
+            margin-left: 0 !important;
+        }
+
+        body.sidebar-mobile-open .sidebar {
+            transform: translateX(0) !important;
+        }
+
+        .sidebar-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(2px);
+            z-index: 1040;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+
+        body.sidebar-mobile-open .sidebar-backdrop {
+            opacity: 1;
+            pointer-events: auto;
+        }
     }
 </style>
 </body>
