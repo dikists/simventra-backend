@@ -60,6 +60,9 @@
                                 </div>
                                 <div>
                                     <div style="font-weight:600;font-size:13.5px;color:#343a40;">{{ $user->name }}</div>
+                                    @if($user->username)
+                                        <div style="font-size:11.5px;color:#556ee6;font-weight:500;">&#64;{{ $user->username }}</div>
+                                    @endif
                                     @if($user->id === auth()->id())
                                         <span class="badge badge-blue" style="font-size:10.5px;padding:2px 6px;">Akun Anda</span>
                                     @endif
@@ -133,10 +136,17 @@
             </div>
             <form wire:submit="createUser">
                 <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
-                    <div>
-                        <label class="form-label">Nama Lengkap *</label>
-                        <input wire:model="name" type="text" class="form-input @error('name') form-input-error @enderror" placeholder="Nama pengguna">
-                        @error('name') <p class="form-error">{{ $message }}</p> @enderror
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div>
+                            <label class="form-label">Nama Lengkap *</label>
+                            <input wire:model="name" type="text" class="form-input @error('name') form-input-error @enderror" placeholder="Nama pengguna">
+                            @error('name') <p class="form-error">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="form-label">Username (Opsional)</label>
+                            <input wire:model="username" type="text" class="form-input @error('username') form-input-error @enderror" placeholder="contoh: budi123">
+                            @error('username') <p class="form-error">{{ $message }}</p> @enderror
+                        </div>
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div>
@@ -195,10 +205,17 @@
             </div>
             <form wire:submit="updateUser">
                 <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
-                    <div>
-                        <label class="form-label">Nama Lengkap *</label>
-                        <input wire:model="name" type="text" class="form-input @error('name') form-input-error @enderror">
-                        @error('name') <p class="form-error">{{ $message }}</p> @enderror
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div>
+                            <label class="form-label">Nama Lengkap *</label>
+                            <input wire:model="name" type="text" class="form-input @error('name') form-input-error @enderror">
+                            @error('name') <p class="form-error">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="form-label">Username</label>
+                            <input wire:model="username" type="text" class="form-input @error('username') form-input-error @enderror" placeholder="contoh: budi123">
+                            @error('username') <p class="form-error">{{ $message }}</p> @enderror
+                        </div>
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div>

@@ -35,15 +35,16 @@ class DriverApiController extends Controller
 
         $login = $request->input('login');
 
-        // Find user by email or phone
+        // Find user by email, username, or phone
         $user = User::where('email', $login)
+            ->orWhere('username', $login)
             ->orWhere('phone', $login)
             ->first();
 
         if (!$user || !Hash::check($request->input('password'), $user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Nomor HP/Email atau kata sandi tidak sesuai.',
+                'message' => 'Username/Email/Nomor HP atau kata sandi tidak sesuai.',
             ], 401);
         }
 

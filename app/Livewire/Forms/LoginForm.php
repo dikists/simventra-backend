@@ -12,7 +12,7 @@ use Livewire\Form;
 
 class LoginForm extends Form
 {
-    #[Validate('required|string|email')]
+    #[Validate('required|string')]
     public string $email = '';
 
     #[Validate('required|string')]
@@ -30,11 +30,35 @@ class LoginForm extends Form
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only(['email', 'password']), $this->remember)) {
+        $loginInput = trim($this->email);
+        $fieldType = filter_var($loginInput, FILTER_VALIDATE_EMAIL) ? 'email' : 'username';
+
+        $credentials = [
+            $fieldType => $loginInput,
+            'password' => $this->password,
+        ];
+
+        // Coba autentikasi dengan email / username
+        $authenticated = Auth::attempt($credentials, $this->remember);
+
+        if (! $authenticated) {
+            $altField = $fieldType === 'email' ? 'username' : 'email';
+            $authenticated = Auth::attempt([$altField => $loginInput, 'password' => $this->password], $this->remember);
+        }
+
+        if (! $authenticated) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
                 'form.email' => trans('auth.failed'),
+            ]);
+        }
+
+        // Pastikan akun aktif
+        if (! Auth::user()->is_active) {
+            Auth::logout();
+            throw ValidationException::withMessages([
+                'form.email' => 'Akun Anda sedang dinonaktifkan oleh administrator.',
             ]);
         }
 

@@ -25,6 +25,7 @@ class UserIndex extends Component
 
     // Form fields
     public string $name = '';
+    public string $username = '';
     public string $email = '';
     public string $phone = '';
     public string $password = '';
@@ -39,7 +40,7 @@ class UserIndex extends Component
     public function openCreateModal(): void
     {
         $this->resetValidation();
-        $this->reset(['name', 'email', 'phone', 'password', 'password_confirmation', 'role', 'selectedUserId']);
+        $this->reset(['name', 'username', 'email', 'phone', 'password', 'password_confirmation', 'role', 'selectedUserId']);
         $this->is_active = true;
         $this->role = Role::first()?->name ?? 'HR';
         $this->showCreateModal = true;
@@ -49,14 +50,19 @@ class UserIndex extends Component
     {
         $this->validate([
             'name'     => 'required|string|max:255',
+            'username' => 'nullable|string|alpha_dash|max:50|unique:users,username',
             'email'    => 'required|string|email|max:255|unique:users,email',
             'phone'    => 'nullable|string|max:20',
             'password' => 'required|string|min:8|confirmed',
             'role'     => 'required|exists:roles,name',
         ]);
 
+        $finalUsername = $this->username ?: strtolower(explode('@', $this->email)[0]);
+        $finalUsername = preg_replace('/[^a-z0-9_.]/', '', $finalUsername);
+
         $user = User::create([
             'name'      => $this->name,
+            'username'  => $finalUsername ?: null,
             'email'     => $this->email,
             'phone'     => $this->phone ?: null,
             'password'  => Hash::make($this->password),
@@ -76,6 +82,7 @@ class UserIndex extends Component
         $user = User::findOrFail($userId);
 
         $this->name = $user->name;
+        $this->username = $user->username ?? '';
         $this->email = $user->email;
         $this->phone = $user->phone ?? '';
         $this->is_active = (bool) $user->is_active;
@@ -92,6 +99,7 @@ class UserIndex extends Component
 
         $this->validate([
             'name'     => 'required|string|max:255',
+            'username' => ['nullable', 'string', 'alpha_dash', 'max:50', Rule::unique('users')->ignore($user->id)],
             'email'    => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'phone'    => 'nullable|string|max:20',
             'password' => 'nullable|string|min:8|confirmed',
@@ -100,6 +108,7 @@ class UserIndex extends Component
 
         $userData = [
             'name'      => $this->name,
+            'username'  => $this->username ?: null,
             'email'     => $this->email,
             'phone'     => $this->phone ?: null,
             'is_active' => $this->is_active,
@@ -162,6 +171,7 @@ class UserIndex extends Component
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
                     $q->where('name', 'like', '%' . $this->search . '%')
+                      ->orWhere('username', 'like', '%' . $this->search . '%')
                       ->orWhere('email', 'like', '%' . $this->search . '%')
                       ->orWhere('phone', 'like', '%' . $this->search . '%');
                 });

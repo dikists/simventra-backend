@@ -14,6 +14,7 @@ class UserSeeder extends Seeder
             ['email' => 'admin@simventra.id'],
             [
                 'name'     => 'Super Administrator',
+                'username' => 'admin',
                 'phone'    => '08100000001',
                 'password' => Hash::make('Password@123'),
                 'is_active'=> true,
@@ -26,6 +27,7 @@ class UserSeeder extends Seeder
             ['email' => 'hr@simventra.id'],
             [
                 'name'     => 'Staff HR',
+                'username' => 'hr',
                 'phone'    => '08100000002',
                 'password' => Hash::make('Password@123'),
                 'is_active'=> true,
@@ -38,6 +40,7 @@ class UserSeeder extends Seeder
             ['email' => 'fleet@simventra.id'],
             [
                 'name'     => 'Fleet Officer',
+                'username' => 'fleet',
                 'phone'    => '08100000003',
                 'password' => Hash::make('Password@123'),
                 'is_active'=> true,
@@ -47,11 +50,11 @@ class UserSeeder extends Seeder
 
         $this->command->info('✅ Users seeded successfully!');
         $this->command->table(
-            ['Email', 'Role', 'Password'],
+            ['Username', 'Email', 'Role', 'Password'],
             [
-                ['admin@simventra.id', 'Super Admin', 'Password@123'],
-                ['hr@simventra.id', 'HR', 'Password@123'],
-                ['fleet@simventra.id', 'Fleet Officer', 'Password@123'],
+                ['admin', 'admin@simventra.id', 'Super Admin', 'Password@123'],
+                ['hr', 'hr@simventra.id', 'HR', 'Password@123'],
+                ['fleet', 'fleet@simventra.id', 'Fleet Officer', 'Password@123'],
             ]
         );
     }
