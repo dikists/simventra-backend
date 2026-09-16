@@ -1,0 +1,293 @@
+@assets
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+@endassets
+
+<div>
+
+    <!-- Page Header -->
+    <div class="page-header" style="margin-bottom:20px;">
+        <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <h1 class="page-title">Monitoring Armada Live GPS</h1>
+                <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:20px;font-size:12px;font-weight:700;color:#065f46;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:#10b981;animation:pulse 1.5s infinite;"></span>
+                    LIVE STREAMING
+                </span>
+            </div>
+            <p class="page-subtitle">Pantau posisi koordinat, kecepatan, dan rute armada secara real-time dari sinyal GPS aplikasi sopir.</p>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;">
+            <a href="/sopir" target="_blank" class="btn btn-secondary" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                Buka App Driver (Sopir)
+            </a>
+            <button onclick="fetchLocations()" class="btn btn-primary">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Refresh Peta
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Grid: Map & Vehicle List Panel -->
+    <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+
+        <!-- Left Sidebar: Active Fleet List (1 col) -->
+        <div class="flex flex-col gap-4">
+            <div class="card" style="padding:16px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                    <h3 style="font-size:14px;font-weight:700;color:#2a3042;text-transform:uppercase;letter-spacing:0.5px;margin:0;">
+                        Armada On-Trip (<span id="fleet-count">0</span>)
+                    </h3>
+                    <span style="font-size:11px;color:#64748b;" id="last-ping-time">Menghubungkan...</span>
+                </div>
+
+                <div id="fleet-list-container" style="display:flex;flex-direction:column;gap:10px;max-height:600px;overflow-y:auto;padding-right:4px;">
+                    <div style="text-align:center;padding:30px 10px;color:#94a3b8;font-size:13px;">
+                        Memuat data armada bergerak...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gudang Utama Info Box -->
+            <div class="card" style="padding:16px;background:#f8fafc;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="width:36px;height:36px;border-radius:8px;background:#e0e7ff;color:#4338ca;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                    </div>
+                    <div>
+                        <div style="font-size:13px;font-weight:700;color:#1e293b;">Pusat Distribusi / Gudang</div>
+                        <div style="font-size:11.5px;color:#64748b;">Jakarta Logistik Hub &bull; Titik Awal Armada</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side: Interactive Leaflet Map (3 cols) -->
+        <div class="xl:col-span-3">
+            <div class="card" style="overflow:hidden;position:relative;height:680px;border:1px solid #cbd5e1;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
+                <!-- Map Container -->
+                <div id="fleet-map" style="width:100%;height:100%;z-index:1;"></div>
+
+                <!-- Floating Map Overlay Legend -->
+                <div style="position:absolute;bottom:20px;left:20px;z-index:999;background:rgba(255,255,255,0.95);backdrop-filter:blur(4px);padding:10px 14px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);border:1px solid #e2e8f0;font-size:12px;display:flex;align-items:center;gap:14px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <div style="width:12px;height:12px;border-radius:50%;background:#0d6efd;"></div>
+                        <span style="font-weight:600;color:#334155;">Armada Bergerak</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <div style="width:12px;height:12px;border-radius:50%;background:#10b981;"></div>
+                        <span style="font-weight:600;color:#334155;">Halal Dedicated</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b;"></div>
+                        <span style="font-weight:600;color:#334155;">Gudang Utama</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        .vehicle-marker-pulse {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: rgba(13, 110, 253, 0.4);
+            border: 2px solid #0d6efd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pulse 2s infinite;
+        }
+        .vehicle-marker-inner {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #0d6efd;
+        }
+        .halal-marker .vehicle-marker-pulse {
+            background: rgba(16, 185, 129, 0.4);
+            border-color: #10b981;
+        }
+        .halal-marker .vehicle-marker-inner {
+            background: #10b981;
+        }
+        .leaflet-popup-content-wrapper {
+            border-radius: 10px;
+            padding: 4px;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15);
+        }
+    </style>
+
+@script
+<script>
+    let map;
+    let markers = {};
+    const WAREHOUSE_COORDS = [-6.2088, 106.8456]; // Jakarta Pusat
+
+    window.initMap = function() {
+        const mapContainer = document.getElementById('fleet-map');
+        if (!mapContainer) return;
+        if (map) return;
+
+        map = L.map('fleet-map', {
+            center: WAREHOUSE_COORDS,
+            zoom: 11,
+            zoomControl: true
+        });
+
+        // OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Warehouse marker
+        const warehouseIcon = L.divIcon({
+            className: 'warehouse-marker',
+            html: '<div style="width:28px;height:28px;border-radius:8px;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;box-shadow:0 3px 8px rgba(245,158,11,0.5);border:2px solid #fff;">🏢<\/div>',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+        });
+        L.marker(WAREHOUSE_COORDS, { icon: warehouseIcon })
+            .addTo(map)
+            .bindPopup('<b>Gudang Utama SIMVENTRA</b><br>Pusat Distribusi Logistik Jakarta');
+
+        fetchLocations();
+        setInterval(fetchLocations, 4000);
+    };
+
+    window.fetchLocations = async function() {
+        try {
+            const res = await fetch('/api/fleet/live-locations');
+            const data = await res.json();
+            if (data.success) {
+                updateFleetUI(data.fleets);
+            }
+        } catch (err) {
+            console.error('Error fetching fleet coordinates:', err);
+        }
+    };
+
+    function updateFleetUI(fleets) {
+        const countEl = document.getElementById('fleet-count');
+        const pingEl = document.getElementById('last-ping-time');
+        const container = document.getElementById('fleet-list-container');
+
+        if (countEl) countEl.innerText = fleets.length;
+        if (pingEl) pingEl.innerText = 'Sinkron: ' + new Date().toLocaleTimeString();
+
+        if (!container) return;
+
+        if (fleets.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center;padding:30px 10px;color:#94a3b8;font-size:13px;">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:36px;height:36px;margin:0 auto 8px;display:block;opacity:0.6;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                    Tidak ada armada yang sedang di perjalanan.<br>
+                    <span style="font-size:11.5px;color:#cbd5e1;">Semua unit berada di gudang atau belum dimulai oleh sopir.</span>
+                <\/div>
+            `;
+            return;
+        }
+
+        let listHtml = '';
+        const bounds = [WAREHOUSE_COORDS];
+
+        fleets.forEach(fleet => {
+            const lat = fleet.latitude;
+            const lng = fleet.longitude;
+            bounds.push([lat, lng]);
+
+            // 1. Update/Add Leaflet Marker
+            const markerClass = fleet.is_halal ? 'halal-marker' : '';
+            const customIcon = L.divIcon({
+                className: markerClass,
+                html: `
+                    <div class="vehicle-marker-pulse">
+                        <div class="vehicle-marker-inner"><\/div>
+                    <\/div>
+                `,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+
+            const popupHtml = `
+                <div style="min-width:200px;font-family:'Plus Jakarta Sans',sans-serif;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                        <span style="background:#1e293b;color:#fff;padding:2px 8px;border-radius:4px;font-weight:700;font-size:12px;letter-spacing:1px;font-family:monospace;">
+                            ${fleet.license_plate}
+                        </span>
+                        ${fleet.is_halal ? '<span style="color:#10b981;font-weight:700;font-size:11px;">✓ Halal</span>' : ''}
+                    <\/div>
+                    <div style="font-size:13px;font-weight:700;color:#1e293b;">${fleet.brand_model}<\/div>
+                    <div style="font-size:12px;color:#64748b;margin-bottom:6px;">Sopir: <strong>${fleet.driver_name}</strong><\/div>
+                    <div style="padding:6px 8px;background:#f1f5f9;border-radius:6px;font-size:11.5px;margin-bottom:6px;">
+                        <div>📍 ${fleet.destination}<\/div>
+                        <div style="margin-top:2px;">⚡ Kecepatan: <strong>${fleet.speed_kmh} KM/Jam</strong><\/div>
+                        <div style="font-size:10.5px;color:#94a3b8;margin-top:2px;">Update: ${fleet.last_updated}<\/div>
+                    <\/div>
+                    <a href="/kendaraan/${fleet.vehicle_id}" style="display:block;text-align:center;padding:6px;background:#0d6efd;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:600;">
+                        Lihat Detail Armada
+                    </a>
+                <\/div>
+            `;
+
+            if (markers[fleet.assignment_id]) {
+                markers[fleet.assignment_id].setLatLng([lat, lng]);
+                markers[fleet.assignment_id].getPopup().setContent(popupHtml);
+            } else if (map) {
+                const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+                marker.bindPopup(popupHtml);
+                markers[fleet.assignment_id] = marker;
+            }
+
+            // 2. Generate sidebar card item
+            listHtml += `
+                <div onclick="focusVehicle(${lat}, ${lng}, ${fleet.assignment_id})" style="padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <span style="font-weight:700;color:#1e293b;font-family:monospace;font-size:13px;">${fleet.license_plate}</span>
+                        <span style="font-size:11px;font-weight:700;color:${fleet.speed_kmh > 0 ? '#10b981' : '#f59e0b'};">
+                            ${fleet.speed_kmh} km/h
+                        </span>
+                    </div>
+                    <div style="font-size:12px;color:#475569;margin-top:2px;">${fleet.brand_model}</div>
+                    <div style="font-size:11.5px;color:#64748b;margin-top:4px;">
+                        Sopir: <strong>${fleet.driver_name}</strong>
+                    </div>
+                    <div style="font-size:11px;color:#0ea5e9;margin-top:2px;">
+                        📍 ${fleet.destination}
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = listHtml;
+    }
+
+    window.focusVehicle = function(lat, lng, assignmentId) {
+        if (map) {
+            map.setView([lat, lng], 15);
+            if (markers[assignmentId]) {
+                markers[assignmentId].openPopup();
+            }
+        }
+    };
+
+    // Inisialisasi saat Leaflet sudah dimuat
+    if (typeof L !== 'undefined') {
+        initMap();
+    } else {
+        window.addEventListener('load', initMap);
+    }
+    document.addEventListener('livewire:navigated', initMap);
+</script>
+@endscript
+</div>
