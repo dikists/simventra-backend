@@ -4,6 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        <link rel="icon" type="image/png" href="/assets/logo_rhl.png">
 
         <title>{{ config('app.name', 'Laravel') }}</title>
 
@@ -16,9 +17,10 @@
     </head>
     <body class="font-sans text-gray-900 antialiased">
         <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-gray-100">
-            <div>
-                <a href="/" wire:navigate>
-                    <x-application-logo class="w-20 h-20 fill-current text-gray-500" />
+            <div class="text-center mb-2">
+                <a href="/" wire:navigate class="flex flex-col items-center gap-2">
+                    <img src="/assets/logo_rhl.png" alt="Rajawali Handal Logistik" style="width:80px;height:80px;object-fit:contain;">
+                    <span style="font-size:15px;font-weight:700;color:#343a40;letter-spacing:.3px;">Rajawali Handal Logistik</span>
                 </a>
             </div>
 

@@ -58,8 +58,8 @@
                         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
                     </div>
                     <div>
-                        <div style="font-size:13px;font-weight:700;color:#1e293b;">Pusat Distribusi / Gudang</div>
-                        <div style="font-size:11.5px;color:#64748b;">Jakarta Logistik Hub &bull; Titik Awal Armada</div>
+                        <div style="font-size:13px;font-weight:700;color:#1e293b;">{{ $warehouse->name }}</div>
+                        <div style="font-size:11.5px;color:#64748b;">{{ $warehouse->address }} &bull; Titik Awal Armada</div>
                     </div>
                 </div>
             </div>
@@ -131,7 +131,7 @@
 <script>
     let map;
     let markers = {};
-    const WAREHOUSE_COORDS = [-6.2088, 106.8456]; // Jakarta Pusat
+    const WAREHOUSE_COORDS = [{{ $warehouse->latitude }}, {{ $warehouse->longitude }}];
 
     window.initMap = function() {
         const mapContainer = document.getElementById('fleet-map');
@@ -153,13 +153,13 @@
         // Warehouse marker
         const warehouseIcon = L.divIcon({
             className: 'warehouse-marker',
-            html: '<div style="width:28px;height:28px;border-radius:8px;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;box-shadow:0 3px 8px rgba(245,158,11,0.5);border:2px solid #fff;">🏢<\/div>',
+            html: '<div style="width:28px;height:28px;border-radius:8px;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;box-shadow:0 3px 8px rgba(245,158,11,0.5);border:2px solid #fff;">🏢</div>',
             iconSize: [28, 28],
             iconAnchor: [14, 14]
         });
         L.marker(WAREHOUSE_COORDS, { icon: warehouseIcon })
             .addTo(map)
-            .bindPopup('<b>Gudang Utama SIMVENTRA</b><br>Pusat Distribusi Logistik Jakarta');
+            .bindPopup('<b>{{ addslashes($warehouse->name) }}</b><br>{{ addslashes($warehouse->address) }}');
 
         fetchLocations();
         setInterval(fetchLocations, 4000);

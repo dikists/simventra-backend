@@ -3,6 +3,7 @@
 namespace App\Livewire\Monitoring;
 
 use App\Models\VehicleAssignment;
+use App\Models\Warehouse;
 use Livewire\Component;
 
 class LiveTrackingMap extends Component
@@ -14,8 +15,11 @@ class LiveTrackingMap extends Component
             ->latest('updated_at')
             ->get();
 
+        $warehouse = Warehouse::getPrimary();
+
         return view('livewire.monitoring.live-tracking-map', [
             'activeTrips' => $activeTrips,
+            'warehouse'   => $warehouse,
         ])->layout('layouts.app', ['title' => 'Monitoring Armada Live GPS']);
     }
 }

@@ -4,8 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ isset($title) ? $title . ' | SIMVENTRA' : 'SIMVENTRA – Sistem Manajemen Vendor Transportasi' }}</title>
-    <meta name="description" content="SIMVENTRA – Sistem Manajemen Vendor Transportasi Terpusat">
+    <link rel="icon" type="image/png" href="/assets/logo_rhl.png">
+    <title>{{ isset($title) ? $title . ' | RHL SIMVENTRA' : 'RHL SIMVENTRA – Sistem Manajemen Vendor Transportasi' }}</title>
+    <meta name="description" content="Rajawali Handal Logistik – Sistem Manajemen Vendor Transportasi Terpusat">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -28,10 +29,12 @@
 <aside class="sidebar" id="sidebar">
     <!-- Brand -->
     <div class="sidebar-brand">
-        <div class="sidebar-logo">S</div>
+        <div class="sidebar-logo">
+            <img src="/assets/logo_rhl.png" alt="RHL Logo" style="width:34px;height:34px;object-fit:contain;border-radius:8px;">
+        </div>
         <div>
-            <div class="sidebar-brand-text">SIMVENTRA</div>
-            <div class="sidebar-brand-sub">Manajemen Vendor</div>
+            <div class="sidebar-brand-text">Rajawali Handal</div>
+            <div class="sidebar-brand-sub">Logistik</div>
         </div>
     </div>
 
@@ -145,6 +148,14 @@
                     d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
             </svg>
             <span>Pengguna</span>
+        </a>
+        <a href="{{ route('settings.warehouse') }}"
+           class="sidebar-link {{ request()->routeIs('settings.*') ? 'active' : '' }}">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
+            <span>Pengaturan Gudang</span>
         </a>
         @endcan
         @can('view activity logs')
@@ -277,7 +288,7 @@
 
     <!-- Footer -->
     <footer style="text-align:center;padding:16px 24px;font-size:12px;color:#adb5bd;border-top:1px solid #eff2f7;background:#fff;margin-top:auto;">
-        © {{ date('Y') }} SIMVENTRA – Sistem Manajemen Vendor Transportasi
+        © {{ date('Y') }} Rajawali Handal Logistik – Sistem Manajemen Vendor Transportasi
     </footer>
 </div>
 

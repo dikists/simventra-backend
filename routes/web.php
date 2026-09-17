@@ -14,6 +14,7 @@ use App\Livewire\Reports\ReportIndex;
 use App\Livewire\Users\UserIndex;
 use App\Livewire\ActivityLogs\ActivityLogIndex;
 use App\Livewire\Monitoring\LiveTrackingMap;
+use App\Livewire\Settings\WarehouseSettings;
 use Illuminate\Support\Facades\Route;
 
 // Redirect root to dashboard
@@ -87,5 +88,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ===== ACTIVITY LOG =====
     Route::middleware('can:view activity logs')->group(function () {
         Route::get('/log-aktivitas', ActivityLogIndex::class)->name('activity-logs.index');
+    });
+
+    // ===== PENGATURAN GUDANG =====
+    Route::middleware('can:view users')->group(function () {
+        Route::get('/pengaturan/gudang', WarehouseSettings::class)->name('settings.warehouse');
     });
 });
