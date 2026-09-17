@@ -4,7 +4,10 @@ namespace App\Livewire\Vehicles;
 
 use App\Models\Vehicle;
 use App\Models\Employee;
+use App\Models\User;
 use App\Models\VehicleAssignment;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Livewire\Component;
 
 class VehicleDetail extends Component
@@ -67,7 +70,7 @@ class VehicleDetail extends Component
         }
 
         // 1. Create VehicleAssignment record
-        VehicleAssignment::create([
+        $assignment = VehicleAssignment::create([
             'vehicle_id'     => $this->vehicle->id,
             'driver_id'      => $driver->id,
             'assigned_by'    => auth()->id(),
@@ -79,7 +82,47 @@ class VehicleDetail extends Component
             'notes'          => $this->dispatchNotes,
         ]);
 
-        // 2. Update Vehicle with current driver and updated odometer
+        // 2. Auto-link driver to User account if not yet linked
+        $driverUser = $driver->user ?? User::find($driver->user_id);
+        if (!$driverUser && !empty($driver->email)) {
+            $driverUser = User::where('email', $driver->email)->first();
+        }
+        if (!$driverUser && !empty($driver->phone)) {
+            $driverUser = User::where('phone', $driver->phone)->first();
+        }
+        if (!$driverUser && !empty($driver->name)) {
+            $driverUser = User::whereRaw('LOWER(name) = ?', [strtolower(trim($driver->name))])->first();
+            if (!$driverUser) {
+                $driverUser = User::where('name', 'LIKE', '%' . trim($driver->name) . '%')->first();
+            }
+        }
+
+        if ($driverUser && !$driver->user_id) {
+            $driver->update(['user_id' => $driverUser->id]);
+        }
+
+        // 3. Send Push Notification to Driver's smartphone if push_token is registered
+        if ($driverUser && !empty($driverUser->push_token)) {
+            try {
+                Http::timeout(5)->post('https://exp.host/--/api/v2/push/send', [
+                    'to'        => $driverUser->push_token,
+                    'title'     => '🔔 Penugasan Armada Baru!',
+                    'body'      => "Armada {$this->vehicle->license_plate} siap ditugaskan ke {$this->destination}. Buka aplikasi untuk konfirmasi.",
+                    'sound'     => 'default',
+                    'priority'  => 'high',
+                    'channelId' => 'driver-tasks',
+                    'data'      => [
+                        'assignment_id' => $assignment->id,
+                        'license_plate' => $this->vehicle->license_plate,
+                        'status'        => 'assigned',
+                    ],
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('[PushNotification]: Gagal mengirim notif ke sopir ' . $driver->name . ': ' . $e->getMessage());
+            }
+        }
+
+        // 4. Update Vehicle with current driver and updated odometer
         $this->vehicle->update([
             'assigned_driver_id'  => $driver->id,
             'current_odometer_km' => (float) $this->dispatchOdometer,

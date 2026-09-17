@@ -17,6 +17,7 @@ Route::get('/fleet/live-locations', [DriverApiController::class, 'getFleetLiveLo
 
 // Protected: Driver App Operations (via Sanctum Bearer Token)
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/driver/push-token', [DriverApiController::class, 'storePushToken']);
     Route::get('/driver/task', [DriverApiController::class, 'getTask']);
     Route::post('/driver/task/{id}/confirm', [DriverApiController::class, 'confirmTask']);
     Route::post('/driver/task/{id}/start', [DriverApiController::class, 'startTrip']);

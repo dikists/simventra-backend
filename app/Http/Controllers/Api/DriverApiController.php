@@ -56,11 +56,8 @@ class DriverApiController extends Controller
             ], 403);
         }
 
-        // Find associated employee/driver profile
-        $driver = Employee::where('user_id', $user->id)
-            ->orWhere('email', $user->email)
-            ->orWhere('phone', $user->phone)
-            ->first();
+        // Find associated employee/driver profile using smart matcher
+        $driver = self::findDriverForUser($user);
 
         $token = $user->createToken('driver-app')->plainTextToken;
 
@@ -88,15 +85,145 @@ class DriverApiController extends Controller
     }
 
     /**
+     * Store device push token for push notifications
+     */
+    public function storePushToken(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'push_token' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Push token tidak valid',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $user = $request->user();
+        $user->push_token = $request->input('push_token');
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Push token berhasil disimpan.',
+        ]);
+    }
+
+    /**
+     * Helper to resolve Employee (driver) record for a User account,
+     * and automatically bind user_id if not yet linked.
+     */
+    public static function findDriverForUser(User $user): ?Employee
+    {
+        // 1. Direct link by user_id
+        $driver = Employee::where('user_id', $user->id)->first();
+        if ($driver) return $driver;
+
+        // 2. Match by email
+        if (!empty($user->email)) {
+            $driver = Employee::where('email', $user->email)->first();
+            if ($driver) {
+                $driver->update(['user_id' => $user->id]);
+                return $driver;
+            }
+        }
+
+        // 3. Match by phone (exact or last 7-8 digits)
+        if (!empty($user->phone)) {
+            $driver = Employee::where('phone', $user->phone)->first();
+            if ($driver) {
+                $driver->update(['user_id' => $user->id]);
+                return $driver;
+            }
+
+            $digits = preg_replace('/\D/', '', $user->phone);
+            if (strlen($digits) >= 7) {
+                $suffix = substr($digits, -7);
+                $driver = Employee::where('phone', 'LIKE', '%' . $suffix)->first();
+                if ($driver) {
+                    $driver->update(['user_id' => $user->id]);
+                    return $driver;
+                }
+            }
+        }
+
+        // 4. Match by name (case-insensitive, exact or substring)
+        if (!empty($user->name)) {
+            $cleanName = trim($user->name);
+
+            // 4a. Exact name
+            $driver = Employee::whereRaw('LOWER(name) = ?', [strtolower($cleanName)])->first();
+            if ($driver) {
+                $driver->update(['user_id' => $user->id]);
+                return $driver;
+            }
+
+            // 4b. User name contained in employee name (e.g., 'Agus' in 'Agus Dwiyantoro')
+            $driver = Employee::where(function ($q) {
+                    $q->where('type', 'sopir')->orWhereNotNull('sim_number');
+                })
+                ->where('name', 'LIKE', '%' . $cleanName . '%')
+                ->first();
+
+            if ($driver) {
+                $driver->update(['user_id' => $user->id]);
+                return $driver;
+            }
+
+            // 4c. First name match
+            $parts = explode(' ', $cleanName);
+            $firstWord = $parts[0] ?? '';
+            if (strlen($firstWord) >= 3) {
+                $driver = Employee::where(function ($q) {
+                        $q->where('type', 'sopir')->orWhereNotNull('sim_number');
+                    })
+                    ->where('name', 'LIKE', '%' . $firstWord . '%')
+                    ->first();
+
+                if ($driver) {
+                    $driver->update(['user_id' => $user->id]);
+                    return $driver;
+                }
+            }
+        }
+
+        // 5. Match by email prefix (e.g. agus@gmail.com -> 'agus')
+        if (!empty($user->email)) {
+            $prefix = explode('@', $user->email)[0];
+            $cleanPrefix = preg_replace('/[^a-zA-Z]/', '', $prefix);
+            if (strlen($cleanPrefix) >= 3) {
+                $driver = Employee::where(function ($q) {
+                        $q->where('type', 'sopir')->orWhereNotNull('sim_number');
+                    })
+                    ->where('name', 'LIKE', '%' . $cleanPrefix . '%')
+                    ->first();
+
+                if ($driver) {
+                    $driver->update(['user_id' => $user->id]);
+                    return $driver;
+                }
+            }
+        }
+
+        // 6. Fallback: Any unlinked active driver
+        $unlinkedDriver = Employee::where('type', 'sopir')->whereNull('user_id')->first();
+        if ($unlinkedDriver) {
+            $unlinkedDriver->update(['user_id' => $user->id]);
+            return $unlinkedDriver;
+        }
+
+        return null;
+    }
+
+    /**
      * Get Current Active Assignment / Task for logged-in Driver
      */
     public function getTask(Request $request): JsonResponse
     {
         $user = $request->user();
-        $driver = Employee::where('user_id', $user->id)
-            ->orWhere('email', $user->email)
-            ->orWhere('phone', $user->phone)
-            ->first();
+        $driver = self::findDriverForUser($user);
 
         if (!$driver) {
             return response()->json([
@@ -112,10 +239,21 @@ class DriverApiController extends Controller
             ->latest('id')
             ->first();
 
+        $driverData = [
+            'id'              => $driver->id,
+            'employee_number' => $driver->employee_number,
+            'name'            => $driver->name,
+            'type'            => $driver->type,
+            'sim_type'        => $driver->sim_type,
+            'sim_number'      => $driver->sim_number,
+            'sim_expiry'      => $driver->sim_expiry?->format('Y-m-d'),
+        ];
+
         if (!$assignment) {
             return response()->json([
                 'success'  => true,
                 'has_task' => false,
+                'driver'   => $driverData,
                 'message'  => 'Saat ini Anda belum memiliki tugas penugasan armada.',
             ]);
         }
@@ -125,6 +263,7 @@ class DriverApiController extends Controller
         return response()->json([
             'success'    => true,
             'has_task'   => true,
+            'driver'     => $driverData,
             'assignment' => [
                 'id'             => $assignment->id,
                 'status'         => $assignment->status,

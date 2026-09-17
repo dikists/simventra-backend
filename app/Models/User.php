@@ -21,6 +21,7 @@ class User extends Authenticatable
         'phone',
         'password',
         'is_active',
+        'push_token',
     ];
 
     protected $hidden = [
@@ -40,7 +41,7 @@ class User extends Authenticatable
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'username', 'email', 'phone', 'is_active'])
+            ->logOnly(['name', 'username', 'email', 'phone', 'is_active', 'push_token'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }
