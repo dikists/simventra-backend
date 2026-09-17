@@ -64,7 +64,7 @@ class VehicleAssignment extends Model
 
     public function latestLocation()
     {
-        return $this->hasOne(DriverLocation::class, 'assignment_id')->latestOfMany('recorded_at');
+        return $this->hasOne(DriverLocation::class, 'assignment_id')->latestOfMany('id');
     }
 
     // Scopes
