@@ -57,7 +57,9 @@ class CompanySetting extends Model
             if (str_starts_with($setting->logo_path, '/assets') || str_starts_with($setting->logo_path, 'http')) {
                 return $setting->logo_path;
             }
-            return Storage::disk(config('filesystems.default_public_disk'))->url($setting->logo_path);
+            /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+            $disk = Storage::disk(config('filesystems.default_public_disk'));
+            return $disk->url($setting->logo_path);
         }
         return asset('assets/logo_rhl.png');
     }
