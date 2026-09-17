@@ -11,6 +11,7 @@ use App\Models\VehicleAssignment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class DriverApiController extends Controller
@@ -81,7 +82,7 @@ class DriverApiController extends Controller
                 'sim_type'         => $driver->sim_type,
                 'sim_number'       => $driver->sim_number,
                 'sim_expiry'       => $driver->sim_expiry?->format('Y-m-d'),
-                'photo_url'        => $driver->photo ? asset('storage/' . $driver->photo) : null,
+                'photo_url'        => $driver->photo ? Storage::disk(config('filesystems.default_public_disk'))->url($driver->photo) : null,
             ] : null,
         ]);
     }
@@ -145,7 +146,7 @@ class DriverApiController extends Controller
                     'max_capacity_kg'    => (float) $vehicle->max_capacity_kg,
                     'current_odometer_km'=> (float) $vehicle->current_odometer_km,
                     'is_halal_dedicated' => (bool) $vehicle->is_halal_dedicated,
-                    'photo_url'          => $vehicle->photo ? asset('storage/' . $vehicle->photo) : null,
+                    'photo_url'          => $vehicle->photo ? Storage::disk(config('filesystems.default_public_disk'))->url($vehicle->photo) : null,
                 ],
             ],
         ]);

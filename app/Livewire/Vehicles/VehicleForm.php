@@ -4,6 +4,7 @@ namespace App\Livewire\Vehicles;
 
 use App\Models\Employee;
 use App\Models\Vehicle;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -91,7 +92,11 @@ class VehicleForm extends Component
         $validated['is_halal_dedicated'] = (bool) ($this->is_halal_dedicated ?? false);
 
         if ($this->photo && !is_string($this->photo)) {
-            $validated['photo'] = $this->photo->store('vehicles/photos', 'public');
+            // hapus file lama jika ada saat edit
+            if ($this->isEdit && $this->vehicle?->photo && Storage::disk(config('filesystems.default_public_disk'))->exists($this->vehicle->photo)) {
+                Storage::disk(config('filesystems.default_public_disk'))->delete($this->vehicle->photo);
+            }
+            $validated['photo'] = $this->photo->store('vehicles/photos', config('filesystems.default_public_disk'));
         } elseif ($this->isEdit) {
             $validated['photo'] = $this->existingPhoto ?? $this->vehicle?->photo;
         } else {

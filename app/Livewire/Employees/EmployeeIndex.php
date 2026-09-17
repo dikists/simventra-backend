@@ -3,6 +3,7 @@
 namespace App\Livewire\Employees;
 
 use App\Models\Employee;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -48,6 +49,12 @@ class EmployeeIndex extends Component
     {
         if ($this->deleteId) {
             $employee = Employee::findOrFail($this->deleteId);
+
+            // hapus file lama
+            if ($employee->photo && Storage::disk(config('filesystems.default_public_disk'))->exists($employee->photo)) {
+                Storage::disk(config('filesystems.default_public_disk'))->delete($employee->photo);
+            }
+
             $employee->delete();
             session()->flash('success', "Data karyawan '{$employee->name}' berhasil dihapus.");
         }

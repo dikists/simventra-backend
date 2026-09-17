@@ -38,7 +38,7 @@
             <div class="card" style="text-align:center;padding:24px;">
                 <div style="display:flex;justify-content:center;margin-bottom:16px;">
                     @if($employee->photo)
-                        <img src="{{ Storage::url($employee->photo) }}" alt="{{ $employee->name }}" style="width:110px;height:110px;border-radius:50%;object-fit:cover;border:4px solid #f1f3f7;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
+                        <img src="{{ Storage::disk(config('filesystems.default_public_disk'))->url($employee->photo) }}" alt="{{ $employee->name }}" style="width:110px;height:110px;border-radius:50%;object-fit:cover;border:4px solid #f1f3f7;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
                     @else
                         <div style="width:110px;height:110px;border-radius:50%;background:linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;border:4px solid #f1f3f7;box-shadow:0 4px 12px rgba(13,110,253,0.25);">
                             {{ strtoupper(substr($employee->name, 0, 2)) }}
@@ -315,7 +315,7 @@
                                 <td>
                                     <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;">
                                         @if($doc->file_path)
-                                        <a href="{{ Storage::url($doc->file_path) }}" target="_blank" class="btn btn-soft-primary btn-sm" title="Lihat Berkas">
+                                        <a href="{{ Storage::disk(config('filesystems.default_public_disk'))->url($doc->file_path) }}" target="_blank" class="btn btn-soft-primary btn-sm" title="Lihat Berkas">
                                             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                         </a>
                                         @endif

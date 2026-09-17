@@ -3,6 +3,7 @@
 namespace App\Livewire\Documents;
 
 use App\Models\EmployeeDocument;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
@@ -62,7 +63,7 @@ class EmployeeDocumentIndex extends Component
 
         $filePath = null;
         if ($this->file) {
-            $filePath = $this->file->store('employee-documents', 'public');
+            $filePath = $this->file->store('employee-documents', config('filesystems.default_public_disk'));
         }
 
         EmployeeDocument::create([
@@ -91,7 +92,14 @@ class EmployeeDocumentIndex extends Component
     public function delete(): void
     {
         if ($this->deleteId) {
-            EmployeeDocument::findOrFail($this->deleteId)->delete();
+            $doc = EmployeeDocument::findOrFail($this->deleteId);
+
+            // hapus file lama
+            if ($doc->file_path && Storage::disk(config('filesystems.default_public_disk'))->exists($doc->file_path)) {
+                Storage::disk(config('filesystems.default_public_disk'))->delete($doc->file_path);
+            }
+
+            $doc->delete();
             session()->flash('success', 'Dokumen berhasil dihapus.');
         }
         $this->showDeleteModal = false;

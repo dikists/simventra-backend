@@ -109,7 +109,7 @@
                         @if($photo && method_exists($photo, 'temporaryUrl'))
                             <img src="{{ $photo->temporaryUrl() }}" class="w-full h-36 rounded-xl mx-auto object-cover mb-3 border border-slate-200">
                         @elseif($isEdit && ($existingPhoto ?? $vehicle?->photo))
-                            <img src="{{ Storage::url($existingPhoto ?? $vehicle->photo) }}" class="w-full h-36 rounded-xl mx-auto object-cover mb-3 border border-slate-200">
+                            <img src="{{ Storage::disk(config('filesystems.default_public_disk'))->url($existingPhoto ?? $vehicle->photo) }}" class="w-full h-36 rounded-xl mx-auto object-cover mb-3 border border-slate-200">
                         @else
                             <div class="w-full h-36 rounded-xl bg-slate-100 flex flex-col items-center justify-center mb-3 border-2 border-dashed border-slate-200">
                                 <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>

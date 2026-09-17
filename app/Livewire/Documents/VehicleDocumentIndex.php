@@ -3,6 +3,7 @@
 namespace App\Livewire\Documents;
 
 use App\Models\VehicleDocument;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
@@ -50,7 +51,7 @@ class VehicleDocumentIndex extends Component
 
         $filePath = null;
         if ($this->file) {
-            $filePath = $this->file->store('vehicle-documents', 'public');
+            $filePath = $this->file->store('vehicle-documents', config('filesystems.default_public_disk'));
         }
 
         VehicleDocument::create([
@@ -75,7 +76,17 @@ class VehicleDocumentIndex extends Component
     public function confirmDelete(int $id): void { $this->deleteId = $id; $this->showDeleteModal = true; }
     public function delete(): void
     {
-        if ($this->deleteId) { VehicleDocument::findOrFail($this->deleteId)->delete(); session()->flash('success', 'Dokumen dihapus.'); }
+        if ($this->deleteId) {
+            $doc = VehicleDocument::findOrFail($this->deleteId);
+
+            // hapus file lama
+            if ($doc->file_path && Storage::disk(config('filesystems.default_public_disk'))->exists($doc->file_path)) {
+                Storage::disk(config('filesystems.default_public_disk'))->delete($doc->file_path);
+            }
+
+            $doc->delete();
+            session()->flash('success', 'Dokumen dihapus.');
+        }
         $this->showDeleteModal = false;
     }
 

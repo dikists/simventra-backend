@@ -75,7 +75,7 @@
                         </td>
                         <td>
                             @if($doc->file_path)
-                            <a href="{{ Storage::url($doc->file_path) }}" target="_blank" class="text-blue-600 hover:underline text-sm flex items-center gap-1">
+                            <a href="{{ Storage::disk(config('filesystems.default_public_disk'))->url($doc->file_path) }}" target="_blank" class="text-blue-600 hover:underline text-sm flex items-center gap-1">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z"/></svg>
                                 Unduh
                             </a>

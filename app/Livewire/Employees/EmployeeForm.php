@@ -3,6 +3,7 @@
 namespace App\Livewire\Employees;
 
 use App\Models\Employee;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -131,7 +132,11 @@ class EmployeeForm extends Component
 
         // Handle photo upload
         if ($this->photo && !is_string($this->photo)) {
-            $validated['photo'] = $this->photo->store('employees/photos', 'public');
+            // hapus file lama jika ada saat edit
+            if ($this->isEdit && $this->employee?->photo && Storage::disk(config('filesystems.default_public_disk'))->exists($this->employee->photo)) {
+                Storage::disk(config('filesystems.default_public_disk'))->delete($this->employee->photo);
+            }
+            $validated['photo'] = $this->photo->store('employees/photos', config('filesystems.default_public_disk'));
         } elseif ($this->isEdit) {
             $validated['photo'] = $this->existingPhoto ?? $this->employee?->photo;
         } else {

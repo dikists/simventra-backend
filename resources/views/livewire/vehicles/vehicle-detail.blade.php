@@ -59,7 +59,7 @@
         <div class="flex flex-col gap-6">
             <div class="card" style="overflow:hidden;">
                 @if($vehicle->photo)
-                    <img src="{{ Storage::url($vehicle->photo) }}" alt="{{ $vehicle->license_plate }}" style="width:100%;height:220px;object-fit:cover;border-bottom:1px solid #eff2f7;">
+                    <img src="{{ Storage::disk(config('filesystems.default_public_disk'))->url($vehicle->photo) }}" alt="{{ $vehicle->license_plate }}" style="width:100%;height:220px;object-fit:cover;border-bottom:1px solid #eff2f7;">
                 @else
                     <div style="width:100%;height:180px;background:linear-gradient(135deg, #1e293b 0%, #334155 100%);color:#94a3b8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
                         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:52px;height:52px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
@@ -123,7 +123,7 @@
                     @if($vehicle->assignedDriver)
                         <div style="display:flex;align-items:center;gap:14px;padding:12px;background:#f8f9fa;border-radius:8px;border:1px solid #e9ecef;margin-bottom:14px;">
                             @if($vehicle->assignedDriver->photo)
-                                <img src="{{ Storage::url($vehicle->assignedDriver->photo) }}" alt="{{ $vehicle->assignedDriver->name }}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">
+                                <img src="{{ Storage::disk(config('filesystems.default_public_disk'))->url($vehicle->assignedDriver->photo) }}" alt="{{ $vehicle->assignedDriver->name }}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">
                             @else
                                 <div style="width:48px;height:48px;border-radius:50%;background:#0d6efd;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0;">
                                     {{ strtoupper(substr($vehicle->assignedDriver->name, 0, 2)) }}
@@ -345,7 +345,7 @@
                                 <td>
                                     <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;">
                                         @if($doc->file_path)
-                                        <a href="{{ Storage::url($doc->file_path) }}" target="_blank" class="btn btn-soft-primary btn-sm" title="Lihat Berkas">
+                                        <a href="{{ Storage::disk(config('filesystems.default_public_disk'))->url($doc->file_path) }}" target="_blank" class="btn btn-soft-primary btn-sm" title="Lihat Berkas">
                                             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                         </a>
                                         @endif

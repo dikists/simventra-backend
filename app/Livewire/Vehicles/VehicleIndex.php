@@ -3,6 +3,7 @@
 namespace App\Livewire\Vehicles;
 
 use App\Models\Vehicle;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -35,6 +36,12 @@ class VehicleIndex extends Component
     {
         if ($this->deleteId) {
             $vehicle = Vehicle::findOrFail($this->deleteId);
+
+            // hapus file lama
+            if ($vehicle->photo && Storage::disk(config('filesystems.default_public_disk'))->exists($vehicle->photo)) {
+                Storage::disk(config('filesystems.default_public_disk'))->delete($vehicle->photo);
+            }
+
             $vehicle->delete();
             session()->flash('success', "Kendaraan '{$vehicle->license_plate}' berhasil dihapus.");
         }

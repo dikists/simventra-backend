@@ -57,7 +57,7 @@
                         <td><span class="badge badge-{{ $doc->status === 'active' ? 'green' : ($doc->status === 'expired' ? 'red' : 'gray') }}">{{ ucfirst($doc->status) }}</span></td>
                         <td>
                             @if($doc->file_path)
-                            <a href="{{ Storage::url($doc->file_path) }}" target="_blank" class="text-blue-600 hover:underline text-sm">Unduh</a>
+                            <a href="{{ Storage::disk(config('filesystems.default_public_disk'))->url($doc->file_path) }}" target="_blank" class="text-blue-600 hover:underline text-sm">Unduh</a>
                             @else <span class="text-slate-400">–</span> @endif
                         </td>
                         <td>
