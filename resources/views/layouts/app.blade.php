@@ -30,11 +30,11 @@
     <!-- Brand -->
     <div class="sidebar-brand">
         <div class="sidebar-logo">
-            <img src="/assets/logo_rhl.png" alt="RHL Logo" style="width:34px;height:34px;object-fit:contain;border-radius:8px;">
+            <img src="{{ \App\Models\CompanySetting::getLogoUrl() }}" alt="{{ \App\Models\CompanySetting::getName() }}" style="width:34px;height:34px;object-fit:contain;border-radius:8px;">
         </div>
         <div>
-            <div class="sidebar-brand-text">Rajawali Handal</div>
-            <div class="sidebar-brand-sub">Logistik</div>
+            <div class="sidebar-brand-text">{{ \App\Models\CompanySetting::getShortName() }}</div>
+            <div class="sidebar-brand-sub">{{ \App\Models\CompanySetting::getTagline() }}</div>
         </div>
     </div>
 
@@ -149,11 +149,21 @@
             </svg>
             <span>Pengguna</span>
         </a>
-        <a href="{{ route('settings.warehouse') }}"
-           class="sidebar-link {{ request()->routeIs('settings.*') ? 'active' : '' }}">
+        <a href="{{ route('settings.company') }}"
+           class="sidebar-link {{ request()->routeIs('settings.company') ? 'active' : '' }}">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
                     d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
+            <span>Profil & Logo Perusahaan</span>
+        </a>
+        <a href="{{ route('settings.warehouse') }}"
+           class="sidebar-link {{ request()->routeIs('settings.warehouse') ? 'active' : '' }}">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
             <span>Pengaturan Gudang</span>
         </a>
@@ -288,7 +298,7 @@
 
     <!-- Footer -->
     <footer style="text-align:center;padding:16px 24px;font-size:12px;color:#adb5bd;border-top:1px solid #eff2f7;background:#fff;margin-top:auto;">
-        © {{ date('Y') }} Rajawali Handal Logistik – Sistem Manajemen Vendor Transportasi
+        © {{ date('Y') }} {{ \App\Models\CompanySetting::getName() }} – Sistem Manajemen Vendor Transportasi
     </footer>
 </div>
 
