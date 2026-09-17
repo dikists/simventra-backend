@@ -119,6 +119,19 @@ class EmployeeForm extends Component
 
     public function save(): void
     {
+        // Normalisasi input string kosong menjadi null sebelum validasi
+        $nullableFields = [
+            'position', 'department', 'phone', 'email', 'address',
+            'date_of_birth', 'place_of_birth', 'gender', 'nik', 'npwp',
+            'join_date', 'contract_end_date', 'sim_number', 'sim_type',
+            'sim_expiry', 'skck_expiry', 'id_card_number', 'id_card_expiry', 'notes'
+        ];
+        foreach ($nullableFields as $field) {
+            if ($this->{$field} === '') {
+                $this->{$field} = null;
+            }
+        }
+
         $validated = $this->validate();
 
         // Convert empty strings to null for all nullable fields (dates, strings, etc.)
