@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Users;
 
+use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -22,6 +23,7 @@ class UserIndex extends Component
     public bool $showDeleteModal = false;
 
     public ?int $selectedUserId = null;
+    public ?int $selectedEmployeeId = null;
 
     // Form fields
     public string $name = '';
@@ -40,10 +42,35 @@ class UserIndex extends Component
     public function openCreateModal(): void
     {
         $this->resetValidation();
-        $this->reset(['name', 'username', 'email', 'phone', 'password', 'password_confirmation', 'role', 'selectedUserId']);
+        $this->reset(['name', 'username', 'email', 'phone', 'password', 'password_confirmation', 'role', 'selectedUserId', 'selectedEmployeeId']);
         $this->is_active = true;
         $this->role = Role::first()?->name ?? 'HR';
         $this->showCreateModal = true;
+    }
+
+    public function updatedSelectedEmployeeId($employeeId): void
+    {
+        if (!$employeeId) return;
+
+        $emp = Employee::find($employeeId);
+        if ($emp) {
+            $this->name  = $emp->name;
+            $this->email = $emp->email ?: strtolower(preg_replace('/[^a-z0-9]/', '', $emp->name)) . '@simventra.internal';
+            $this->phone = $emp->phone ?? '';
+
+            // Auto-generate username
+            $cleanName = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', explode(' ', trim($emp->name))[0]));
+            $this->username = $cleanName . rand(10, 99);
+
+            // Auto-detect role
+            if ($emp->type === 'sopir') {
+                $this->role = 'Sopir';
+            } elseif (stripos($emp->position ?? '', 'fleet') !== false || stripos($emp->department ?? '', 'armada') !== false) {
+                $this->role = 'Fleet Officer';
+            } elseif (stripos($emp->department ?? '', 'hr') !== false) {
+                $this->role = 'HR';
+            }
+        }
     }
 
     public function createUser(): void
@@ -71,7 +98,15 @@ class UserIndex extends Component
 
         $user->assignRole($this->role);
 
-        session()->flash('success', "Pengguna {$user->name} berhasil ditambahkan.");
+        // Jika dipilih dari karyawan, hubungkan user_id ke employee
+        if ($this->selectedEmployeeId) {
+            $employee = Employee::find($this->selectedEmployeeId);
+            if ($employee) {
+                $employee->update(['user_id' => $user->id]);
+            }
+        }
+
+        session()->flash('success', "Pengguna {$user->name} berhasil ditambahkan" . ($this->selectedEmployeeId ? " dan dihubungkan ke data Karyawan." : "."));
         $this->showCreateModal = false;
     }
 
@@ -99,52 +134,37 @@ class UserIndex extends Component
 
         $this->validate([
             'name'     => 'required|string|max:255',
-            'username' => ['nullable', 'string', 'alpha_dash', 'max:50', Rule::unique('users')->ignore($user->id)],
-            'email'    => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'username' => ['nullable', 'string', 'alpha_dash', 'max:50', Rule::unique('users', 'username')->ignore($user->id)],
+            'email'    => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'phone'    => 'nullable|string|max:20',
             'password' => 'nullable|string|min:8|confirmed',
             'role'     => 'required|exists:roles,name',
         ]);
 
-        $userData = [
+        $finalUsername = $this->username ?: strtolower(explode('@', $this->email)[0]);
+        $finalUsername = preg_replace('/[^a-z0-9_.]/', '', $finalUsername);
+
+        $data = [
             'name'      => $this->name,
-            'username'  => $this->username ?: null,
+            'username'  => $finalUsername ?: null,
             'email'     => $this->email,
             'phone'     => $this->phone ?: null,
             'is_active' => $this->is_active,
         ];
 
         if (!empty($this->password)) {
-            $userData['password'] = Hash::make($this->password);
+            $data['password'] = Hash::make($this->password);
         }
 
-        $user->update($userData);
+        $user->update($data);
         $user->syncRoles([$this->role]);
 
-        session()->flash('success', "Data pengguna {$user->name} berhasil diperbarui.");
+        session()->flash('success', "Pengguna {$user->name} berhasil diperbarui.");
         $this->showEditModal = false;
-    }
-
-    public function toggleActive(int $userId): void
-    {
-        if ($userId === auth()->id()) {
-            session()->flash('error', 'Anda tidak dapat menonaktifkan akun sendiri.');
-            return;
-        }
-
-        $user = User::findOrFail($userId);
-        $user->update(['is_active' => !$user->is_active]);
-        $status = $user->is_active ? 'diaktifkan' : 'dinonaktifkan';
-        session()->flash('success', "Akun {$user->name} berhasil {$status}.");
     }
 
     public function confirmDelete(int $userId): void
     {
-        if ($userId === auth()->id()) {
-            session()->flash('error', 'Anda tidak dapat menghapus akun Anda sendiri.');
-            return;
-        }
-
         $this->selectedUserId = $userId;
         $this->showDeleteModal = true;
     }
@@ -159,6 +179,10 @@ class UserIndex extends Component
 
         $user = User::findOrFail($this->selectedUserId);
         $name = $user->name;
+
+        // Unlink employee if linked
+        Employee::where('user_id', $user->id)->update(['user_id' => null]);
+
         $user->delete();
 
         session()->flash('success', "Pengguna {$name} berhasil dihapus.");
@@ -167,7 +191,7 @@ class UserIndex extends Component
 
     public function render()
     {
-        $users = User::with('roles')
+        $users = User::with(['roles', 'employee'])
             ->when($this->search, function ($query) {
                 $query->where(function ($q) {
                     $q->where('name', 'like', '%' . $this->search . '%')
@@ -186,8 +210,9 @@ class UserIndex extends Component
             ->paginate(10);
 
         $roles = Role::orderBy('name')->get();
+        $availableEmployees = Employee::whereNull('user_id')->orderBy('name')->get();
 
-        return view('livewire.users.user-index', compact('users', 'roles'))
+        return view('livewire.users.user-index', compact('users', 'roles', 'availableEmployees'))
             ->layout('layouts.app', ['title' => 'Manajemen Pengguna']);
     }
 }

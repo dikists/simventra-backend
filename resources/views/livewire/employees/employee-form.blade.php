@@ -71,6 +71,57 @@
                     </div>
                 </div>
 
+                <!-- Akses Pengguna & Login Sistem (Otomatisasi Akun) -->
+                <div class="card border-l-4 {{ $create_user_account ? 'border-l-indigo-600' : 'border-l-slate-300' }}">
+                    <div class="card-header flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xl">🔐</span>
+                            <div>
+                                <h3 class="card-title text-base font-bold text-slate-800">Akses Pengguna & Login Aplikasi</h3>
+                                <p class="text-xs text-slate-500">Buat akun login sistem web & SIMVENTRA Driver App secara otomatis</p>
+                            </div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" wire:model.live="create_user_account" class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            <span class="ml-2 text-xs font-semibold text-slate-700">{{ $create_user_account ? 'Aktif' : 'Nonaktif' }}</span>
+                        </label>
+                    </div>
+
+                    @if($create_user_account)
+                    <div class="card-body bg-indigo-50/30 border-t border-indigo-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="form-label">Username Login *</label>
+                            <input wire:model="user_username" type="text" class="form-input @error('user_username') form-input-error @enderror" placeholder="contoh: budi12">
+                            @error('user_username') <p class="form-error">{{ $message }}</p> @enderror
+                            <p class="text-[11px] text-slate-500 mt-1">Bisa digunakan sopir/staf untuk login aplikasi.</p>
+                        </div>
+
+                        <div>
+                            <label class="form-label">Peran Hak Akses (Role) *</label>
+                            <select wire:model="user_role" class="form-select @error('user_role') form-input-error @enderror">
+                                @foreach($roles as $roleItem)
+                                    <option value="{{ $roleItem->name }}">{{ $roleItem->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('user_role') <p class="form-error">{{ $message }}</p> @enderror
+                            <p class="text-[11px] text-slate-500 mt-1">Otomatis disesuaikan dengan tipe karyawan.</p>
+                        </div>
+
+                        <div>
+                            <label class="form-label">Kata Sandi (Password) {{ $isEdit && $user_id ? '(Opsional)' : '*' }}</label>
+                            <input wire:model="user_password" type="password" class="form-input @error('user_password') form-input-error @enderror" placeholder="{{ $isEdit && $user_id ? 'Kosongkan jika tidak diubah' : 'Min. 6 karakter (default: password123)' }}">
+                            @error('user_password') <p class="form-error">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div class="flex items-center gap-3 pt-6">
+                            <input wire:model="user_is_active" type="checkbox" id="user_is_active" class="w-4 h-4 rounded border-slate-300 text-indigo-600">
+                            <label for="user_is_active" class="text-sm font-semibold text-slate-700">Akun Pengguna Langsung Aktif</label>
+                        </div>
+                    </div>
+                    @endif
+                </div>
+
                 <!-- Data Pribadi -->
                 <div class="card">
                     <div class="card-header"><h3 class="card-title">Data Pribadi</h3></div>

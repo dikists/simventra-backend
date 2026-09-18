@@ -3,9 +3,12 @@
 namespace App\Livewire\Employees;
 
 use App\Models\Employee;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Spatie\Permission\Models\Role;
 
 class EmployeeForm extends Component
 {
@@ -14,7 +17,7 @@ class EmployeeForm extends Component
     public ?Employee $employee = null;
     public bool $isEdit = false;
 
-    // Form fields
+    // Form fields Karyawan
     public string $employee_number = '';
     public string $name = '';
     public string $type = 'karyawan';
@@ -43,6 +46,14 @@ class EmployeeForm extends Component
     public ?string $notes = null;
     public ?string $existingPhoto = null;
     public $photo = null;
+
+    // Form fields Akun Pengguna / Akses Login
+    public bool $create_user_account = false;
+    public ?int $user_id = null;
+    public string $user_username = '';
+    public string $user_role = 'Sopir';
+    public string $user_password = '';
+    public bool $user_is_active = true;
 
     protected function rules(): array
     {
@@ -95,6 +106,30 @@ class EmployeeForm extends Component
         'skck_expiry'       => 'Kadaluarsa SKCK',
     ];
 
+    public function updatedType($value): void
+    {
+        if ($value === 'sopir') {
+            $this->user_role = 'Sopir';
+            if (!$this->isEdit) {
+                $this->create_user_account = true;
+            }
+        } elseif ($value === 'karyawan') {
+            if ($this->user_role === 'Sopir') {
+                $this->user_role = 'Staff';
+            }
+        }
+    }
+
+    public function updatedName($value): void
+    {
+        if (!$this->isEdit && empty($this->user_username) && !empty($value)) {
+            $cleaned = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', explode(' ', trim($value))[0]));
+            if (!empty($cleaned)) {
+                $this->user_username = $cleaned . rand(10, 99);
+            }
+        }
+    }
+
     public function mount(?Employee $employee = null): void
     {
         if ($employee && $employee->exists) {
@@ -103,6 +138,19 @@ class EmployeeForm extends Component
             $this->fill($employee->toArray());
             $this->existingPhoto = $employee->photo;
             $this->photo = null;
+
+            // Load data akun pengguna jika sudah terhubung
+            if ($employee->user_id) {
+                $user = $employee->user;
+                if ($user) {
+                    $this->create_user_account = true;
+                    $this->user_id             = $user->id;
+                    $this->user_username       = $user->username ?? '';
+                    $this->user_role           = $user->roles->first()?->name ?? 'Sopir';
+                    $this->user_is_active      = (bool) $user->is_active;
+                }
+            }
+
             // Format dates to Y-m-d for input
             foreach (['date_of_birth','join_date','contract_end_date','sim_expiry','skck_expiry','id_card_expiry'] as $field) {
                 if ($employee->$field) {
@@ -114,6 +162,11 @@ class EmployeeForm extends Component
         } else {
             $nextId = ((int) Employee::max('id')) + 1;
             $this->employee_number = 'EMP-' . str_pad((string)$nextId, 4, '0', STR_PAD_LEFT);
+            // Default untuk sopir adalah langsung buat akun login
+            if ($this->type === 'sopir') {
+                $this->create_user_account = true;
+                $this->user_role = 'Sopir';
+            }
         }
     }
 
@@ -156,12 +209,78 @@ class EmployeeForm extends Component
             unset($validated['photo']);
         }
 
+        // --- PROSES PEMBUATAN / PEMBARUAN AKUN PENGGUNA OTOMATIS ---
+        if ($this->create_user_account) {
+            $userRules = [
+                'user_role'     => 'required|exists:roles,name',
+                'user_username' => 'nullable|string|alpha_dash|max:50',
+            ];
+
+            if (!$this->user_id || !empty($this->user_password)) {
+                $userRules['user_password'] = 'required|string|min:6';
+            }
+
+            $this->validate($userRules, [
+                'user_role.required'     => 'Peran (Role) akses wajib dipilih.',
+                'user_password.required' => 'Kata sandi wajib diisi untuk akun login baru.',
+                'user_password.min'      => 'Kata sandi minimal 6 karakter.',
+            ]);
+
+            $targetEmail = $this->email ?: (strtolower(preg_replace('/[^a-z0-9]/', '', $this->name)) . rand(100, 999) . '@simventra.internal');
+            $targetUsername = $this->user_username ?: strtolower(preg_replace('/[^a-z0-9]/', '', explode(' ', trim($this->name))[0])) . rand(10, 99);
+
+            if ($this->user_id) {
+                $existingUser = User::find($this->user_id);
+                if ($existingUser) {
+                    $userData = [
+                        'name'      => $this->name,
+                        'phone'     => $this->phone ?: $existingUser->phone,
+                        'is_active' => $this->user_is_active,
+                    ];
+                    if (!empty($this->email)) {
+                        $userData['email'] = $this->email;
+                    }
+                    if (!empty($this->user_username)) {
+                        $userData['username'] = $this->user_username;
+                    }
+                    if (!empty($this->user_password)) {
+                        $userData['password'] = Hash::make($this->user_password);
+                    }
+                    $existingUser->update($userData);
+                    $existingUser->syncRoles([$this->user_role]);
+                    $validated['user_id'] = $existingUser->id;
+                }
+            } else {
+                // Buat akun user baru
+                if (User::where('email', $targetEmail)->exists()) {
+                    $targetEmail = strtolower(preg_replace('/[^a-z0-9]/', '', $this->name)) . rand(1000, 9999) . '@simventra.internal';
+                }
+
+                $newUser = User::create([
+                    'name'      => $this->name,
+                    'username'  => $targetUsername,
+                    'email'     => $targetEmail,
+                    'phone'     => $this->phone ?: null,
+                    'password'  => Hash::make($this->user_password ?: 'password123'),
+                    'is_active' => $this->user_is_active,
+                ]);
+
+                $newUser->assignRole($this->user_role);
+                $this->user_id = $newUser->id;
+                $validated['user_id'] = $newUser->id;
+            }
+        } else {
+            if (!$this->isEdit) {
+                $validated['user_id'] = null;
+            }
+        }
+
         if ($this->isEdit && $this->employee) {
             $this->employee->update($validated);
             session()->flash('success', "Data karyawan '{$this->employee->name}' berhasil diperbarui.");
         } else {
             $employee = Employee::create($validated);
-            session()->flash('success', "Karyawan '{$employee->name}' berhasil ditambahkan.");
+            session()->flash('success', "Karyawan '{$employee->name}' berhasil ditambahkan" . ($this->create_user_account ? " beserta akun login pengguna." : "."));
         }
 
         $this->redirect(route('employees.index'), navigate: true);
@@ -170,8 +289,11 @@ class EmployeeForm extends Component
     public function render()
     {
         $title = $this->isEdit ? 'Edit Karyawan: ' . $this->employee?->name : 'Tambah Karyawan';
+        $roles = Role::orderBy('name')->get();
+
         return view('livewire.employees.employee-form', array_merge(get_object_vars($this), [
             'title' => $title,
+            'roles' => $roles,
         ]))->layout('layouts.app', ['title' => $title]);
     }
 }

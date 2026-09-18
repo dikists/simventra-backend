@@ -63,6 +63,11 @@
                                     @if($user->username)
                                         <div style="font-size:11.5px;color:#556ee6;font-weight:500;">&#64;{{ $user->username }}</div>
                                     @endif
+                                    @if($user->employee)
+                                        <span class="badge badge-gray" style="font-size:10px;padding:2px 6px;margin-top:2px;" title="{{ $user->employee->name }}">
+                                            👤 {{ $user->employee->employee_number }} • {{ ucfirst($user->employee->type) }}
+                                        </span>
+                                    @endif
                                     @if($user->id === auth()->id())
                                         <span class="badge badge-blue" style="font-size:10.5px;padding:2px 6px;">Akun Anda</span>
                                     @endif
@@ -136,6 +141,24 @@
             </div>
             <form wire:submit="createUser">
                 <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
+                    <!-- Opsi Hubungkan dengan Karyawan -->
+                    <div style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:10px;padding:12px;">
+                        <label class="form-label" style="margin-bottom:6px;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:6px;">
+                            <span>🔗</span> Hubungkan dengan Data Karyawan (Opsional)
+                        </label>
+                        <select wire:model.live="selectedEmployeeId" class="form-select">
+                            <option value="">-- Input Pengguna Bebas (Bukan Karyawan) --</option>
+                            @foreach($availableEmployees as $emp)
+                                <option value="{{ $emp->id }}">
+                                    {{ $emp->name }} ({{ ucfirst($emp->type) }} - {{ $emp->employee_number }})
+                                </option>
+                            @endforeach
+                        </select>
+                        <p style="font-size:11px;color:#64748b;margin-top:5px;margin-bottom:0;">
+                            Pilih karyawan untuk mengisi Nama, Email, No. HP, dan Role secara otomatis.
+                        </p>
+                    </div>
+
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div>
                             <label class="form-label">Nama Lengkap *</label>
