@@ -162,6 +162,22 @@
                             <div style="font-size:12px;color:#475569;">
                                 <strong>Berangkat:</strong> {{ $activeAssignment->departure_time ? $activeAssignment->departure_time->format('d/m/Y H:i') : '–' }} &bull; KM Awal: {{ number_format($activeAssignment->start_odometer, 0, ',', '.') }}
                             </div>
+
+                            @if($activeAssignment->status === 'assigned')
+                            <div style="margin-top:10px;padding:8px 10px;background:#fff1f2;border:1px solid #fecdd3;border-radius:6px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                                <div>
+                                    <div style="font-size:11.5px;font-weight:700;color:#9f1239;">⚠️ Menunggu Konfirmasi Sopir</div>
+                                    <div style="font-size:10.5px;color:#be123c;">Sopir belum menekan konfirmasi di HP.</div>
+                                </div>
+                                <button type="button"
+                                        wire:click="recallDriverNotification({{ $activeAssignment->id }})"
+                                        wire:loading.attr="disabled"
+                                        style="background:#e11d48;color:#fff;border:none;padding:5px 10px;font-size:11.5px;font-weight:700;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                                    <span wire:loading.remove wire:target="recallDriverNotification({{ $activeAssignment->id }})">🔔 Deringkan Ulang</span>
+                                    <span wire:loading wire:target="recallDriverNotification({{ $activeAssignment->id }})">Memanggil...</span>
+                                </button>
+                            </div>
+                            @endif
                         </div>
                         @endif
 
@@ -273,6 +289,19 @@
                                     <span class="badge badge-{{ $history->status_badge_color }}">
                                         {{ $history->status_label }}
                                     </span>
+                                    @if($history->status === 'assigned')
+                                    <div style="margin-top:6px;">
+                                        <button type="button"
+                                                wire:click="recallDriverNotification({{ $history->id }})"
+                                                wire:loading.attr="disabled"
+                                                class="btn btn-sm"
+                                                style="background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;padding:3px 8px;font-size:11px;font-weight:700;border-radius:4px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;"
+                                                title="Kirim ulang notifikasi darurat ke HP sopir">
+                                            <span wire:loading.remove wire:target="recallDriverNotification({{ $history->id }})">🔔 Deringkan Ulang</span>
+                                            <span wire:loading wire:target="recallDriverNotification({{ $history->id }})">Memanggil...</span>
+                                        </button>
+                                    </div>
+                                    @endif
                                     @if($history->vehicle_condition_on_return)
                                         <div style="font-size:11px;color:#64748b;margin-top:2px;">
                                             Kondisi: {{ ucfirst(str_replace('_', ' ', $history->vehicle_condition_on_return)) }}

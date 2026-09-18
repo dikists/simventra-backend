@@ -16,3 +16,9 @@ Schedule::command('simventra:check-document-expiry')
     ->withoutOverlapping()
     ->runInBackground()
     ->emailOutputOnFailure(env('ADMIN_EMAIL', 'admin@simventra.id'));
+
+// SIMVENTRA – Auto-Recall Penugasan Armada
+// Deringkan ulang HP sopir setiap menit jika ada tugas yang belum dikonfirmasi > 2 menit
+Schedule::command('simventra:recall-assignments')
+    ->everyMinute()
+    ->withoutOverlapping();

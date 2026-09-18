@@ -137,6 +137,65 @@ class VehicleDetail extends Component
         session()->flash('success', "Armada {$this->vehicle->license_plate} berhasil ditugaskan ke {$driver->name}!");
     }
 
+    /**
+     * Deringkan ulang / kirim notifikasi darurat ke HP sopir jika belum konfirmasi penugasan
+     */
+    public function recallDriverNotification(int $assignmentId): void
+    {
+        $assignment = VehicleAssignment::with(['vehicle', 'driver.user'])->find($assignmentId);
+
+        if (!$assignment) {
+            session()->flash('error', 'Data penugasan tidak ditemukan.');
+            return;
+        }
+
+        if ($assignment->status !== 'assigned') {
+            session()->flash('error', 'Penugasan ini sudah bukan dalam status menunggu konfirmasi.');
+            return;
+        }
+
+        $driver = $assignment->driver;
+        $driverUser = $driver?->user;
+
+        if (!$driverUser && $driver) {
+            // Fallback cari akun user jika belum terhubung
+            $driverUser = User::where('email', $driver->email)
+                ->orWhere('phone', $driver->phone)
+                ->first();
+
+            if (!$driverUser && !empty($driver->phone)) {
+                $suffix = substr(preg_replace('/\D/', '', $driver->phone), -7);
+                $driverUser = User::where('phone', 'LIKE', '%' . $suffix)->first();
+            }
+
+            if ($driverUser) {
+                $driver->update(['user_id' => $driverUser->id]);
+            }
+        }
+
+        if ($driverUser && !empty($driverUser->push_token)) {
+            $sent = PushNotificationService::sendToUser(
+                $driverUser,
+                '🚨 PANGGILAN DARURAT: ' . $assignment->vehicle->license_plate,
+                "Koordinator menderingkan HP Anda! Segera buka aplikasi & konfirmasi tugas ke {$assignment->destination}.",
+                [
+                    'assignment_id' => $assignment->id,
+                    'license_plate' => $assignment->vehicle->license_plate,
+                    'status'        => 'assigned',
+                    'type'          => 'recall',
+                ]
+            );
+
+            if ($sent) {
+                session()->flash('success', "Panggilan alarm notifikasi berhasil dikirimkan ulang ke HP sopir {$driver->name}!");
+            } else {
+                session()->flash('error', "Gagal menghubungi layanan push notification Expo.");
+            }
+        } else {
+            session()->flash('error', "Sopir {$driver?->name} belum login di aplikasi atau belum mengaktifkan izin notifikasi.");
+        }
+    }
+
     public function openReturnModal(): void
     {
         $this->resetValidation();
