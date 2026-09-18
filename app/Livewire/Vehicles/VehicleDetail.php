@@ -6,6 +6,7 @@ use App\Models\Vehicle;
 use App\Models\Employee;
 use App\Models\User;
 use App\Models\VehicleAssignment;
+use App\Services\PushNotificationService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Livewire\Component;
@@ -103,23 +104,16 @@ class VehicleDetail extends Component
 
         // 3. Send Push Notification to Driver's smartphone if push_token is registered
         if ($driverUser && !empty($driverUser->push_token)) {
-            try {
-                Http::timeout(5)->post('https://exp.host/--/api/v2/push/send', [
-                    'to'        => $driverUser->push_token,
-                    'title'     => '🔔 Penugasan Armada Baru!',
-                    'body'      => "Armada {$this->vehicle->license_plate} siap ditugaskan ke {$this->destination}. Buka aplikasi untuk konfirmasi.",
-                    'sound'     => 'default',
-                    'priority'  => 'high',
-                    'channelId' => 'driver-tasks',
-                    'data'      => [
-                        'assignment_id' => $assignment->id,
-                        'license_plate' => $this->vehicle->license_plate,
-                        'status'        => 'assigned',
-                    ],
-                ]);
-            } catch (\Throwable $e) {
-                Log::warning('[PushNotification]: Gagal mengirim notif ke sopir ' . $driver->name . ': ' . $e->getMessage());
-            }
+            PushNotificationService::sendToUser(
+                $driverUser,
+                '🔔 Penugasan Armada Baru!',
+                "Armada {$this->vehicle->license_plate} siap ditugaskan ke {$this->destination}. Buka aplikasi untuk konfirmasi.",
+                [
+                    'assignment_id' => $assignment->id,
+                    'license_plate' => $this->vehicle->license_plate,
+                    'status'        => 'assigned',
+                ]
+            );
         }
 
         // 4. Update Vehicle with current driver and updated odometer
