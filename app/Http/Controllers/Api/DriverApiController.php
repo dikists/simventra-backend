@@ -268,9 +268,11 @@ class DriverApiController extends Controller
                 'id'             => $assignment->id,
                 'status'         => $assignment->status,
                 'status_label'   => $assignment->status_label,
-                'origin'         => $assignment->origin,
-                'destination'    => $assignment->destination,
-                'start_odometer' => (float) $assignment->start_odometer,
+                'origin'                => $assignment->origin,
+                'destination'           => $assignment->destination,
+                'destination_latitude'  => $assignment->destination_latitude ? (float) $assignment->destination_latitude : null,
+                'destination_longitude' => $assignment->destination_longitude ? (float) $assignment->destination_longitude : null,
+                'start_odometer'        => (float) $assignment->start_odometer,
                 'departure_time' => $assignment->departure_time?->toIso8601String(),
                 'notes'          => $assignment->notes,
                 'assigned_by'    => $assignment->assignedBy?->name,
@@ -451,7 +453,7 @@ class DriverApiController extends Controller
             ->where('status', 'on_trip')
             ->get();
 
-        $fleets = $activeAssignments->map(function ($assignment) {
+        $fleets = $activeAssignments->map(function (VehicleAssignment $assignment) {
             $latest = $assignment->latestLocation;
             return [
                 'assignment_id' => $assignment->id,
@@ -462,14 +464,19 @@ class DriverApiController extends Controller
                 'is_halal'      => (bool) $assignment->vehicle->is_halal_dedicated,
                 'driver_name'   => $assignment->driver->name,
                 'driver_phone'  => $assignment->driver->phone,
-                'destination'   => $assignment->destination ?: 'Rute Pengiriman',
-                'departure'     => $assignment->departure_time?->format('H:i, d M'),
-                'latitude'      => $latest ? (float) $latest->latitude : -6.2088, // Default Jakarta
-                'longitude'     => $latest ? (float) $latest->longitude : 106.8456,
-                'speed_kmh'     => $latest ? (float) $latest->speed : 0,
-                'heading'       => $latest ? (float) $latest->heading : 0,
-                'last_updated'  => $latest ? $latest->recorded_at->diffForHumans() : 'Belum ada sinyal GPS',
-                'has_gps'       => (bool) $latest,
+                'destination'           => $assignment->destination ?: 'Rute Pengiriman',
+                'destination_latitude'  => $assignment->destination_latitude ? (float) $assignment->destination_latitude : null,
+                'destination_longitude' => $assignment->destination_longitude ? (float) $assignment->destination_longitude : null,
+                'departure'             => $assignment->departure_time?->format('H:i, d M'),
+                'latitude'              => $latest ? (float) $latest->latitude : -6.2088, // Default Jakarta
+                'longitude'             => $latest ? (float) $latest->longitude : 106.8456,
+                'speed_kmh'             => $latest ? (float) $latest->speed : 0,
+                'heading'               => $latest ? (float) $latest->heading : 0,
+                'last_updated'          => $latest ? $latest->recorded_at->diffForHumans() : 'Belum ada sinyal GPS',
+                'has_gps'               => (bool) $latest,
+                'trail'                 => $assignment->locations()->latest('recorded_at')->take(30)->get()->reverse()->values()->map(function($loc) {
+                    return [(float) $loc->latitude, (float) $loc->longitude];
+                }),
             ];
         });
 

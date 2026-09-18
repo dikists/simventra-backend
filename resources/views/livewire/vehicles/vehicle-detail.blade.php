@@ -464,6 +464,12 @@
                         <div>
                             <input wire:model="destination" id="dispatch-destination-input" type="text" class="form-input" placeholder="Contoh: Jl. Daan Mogot KM 12 / Gudang Cakung / -6.2088, 106.8456">
                             @error('destination') <p class="form-error">{{ $message }}</p> @enderror
+                            @if($destinationLat && $destinationLng)
+                            <div style="font-size:11px;color:#059669;font-weight:600;margin-top:4px;display:flex;align-items:center;gap:4px;">
+                                <span>🎯 Koordinat tersimpan:</span>
+                                <span style="font-family:monospace;background:#ecfdf5;padding:1px 6px;border-radius:4px;border:1px solid #a7f3d0;">{{ number_format($destinationLat, 6) }}, {{ number_format($destinationLng, 6) }}</span>
+                            </div>
+                            @endif
                         </div>
 
                         <!-- Interactive Leaflet Map Picker Panel -->
@@ -601,6 +607,8 @@
     let destPickerMap = null;
     let destPickerMarker = null;
     let currentPickedText = '';
+    let currentPickedLat = null;
+    let currentPickedLng = null;
 
     const defaultLat = {{ (float) ($primaryWarehouse->latitude ?? -6.2088) }};
     const defaultLng = {{ (float) ($primaryWarehouse->longitude ?? 106.8456) }};
@@ -661,6 +669,9 @@
     };
 
     window.updateDestMarker = function(lat, lng, customLabel = null) {
+        currentPickedLat = lat;
+        currentPickedLng = lng;
+
         if (destPickerMarker && destPickerMap) {
             destPickerMarker.setLatLng([lat, lng]);
             destPickerMap.panTo([lat, lng]);
@@ -754,13 +765,17 @@
     window.applyDestinationPicked = function() {
         if (!currentPickedText) return;
         $wire.set('destination', currentPickedText);
+        if (currentPickedLat !== null && currentPickedLng !== null) {
+            $wire.set('destinationLat', currentPickedLat);
+            $wire.set('destinationLng', currentPickedLng);
+        }
         const input = document.getElementById('dispatch-destination-input');
         if (input) {
             input.value = currentPickedText;
         }
         const labelEl = document.getElementById('dest-map-picked-label');
         if (labelEl) {
-            labelEl.innerHTML = '<span style="color:#059669;font-weight:700;">✓ Alamat berhasil disetel ke form tujuan!</span>';
+            labelEl.innerHTML = '<span style="color:#059669;font-weight:700;">✓ Alamat & koordinat berhasil diterapkan ke form!</span>';
         }
     };
 
@@ -769,6 +784,12 @@
             const wh = JSON.parse(jsonStr);
             const text = wh.name + (wh.address ? ' - ' + wh.address : '');
             $wire.set('destination', text);
+            if (wh.lat && wh.lng) {
+                currentPickedLat = parseFloat(wh.lat);
+                currentPickedLng = parseFloat(wh.lng);
+                $wire.set('destinationLat', currentPickedLat);
+                $wire.set('destinationLng', currentPickedLng);
+            }
             const input = document.getElementById('dispatch-destination-input');
             if (input) input.value = text;
 

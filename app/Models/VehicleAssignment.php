@@ -19,6 +19,8 @@ class VehicleAssignment extends Model
         'status',
         'origin',
         'destination',
+        'destination_latitude',
+        'destination_longitude',
         'start_odometer',
         'end_odometer',
         'departure_time',
@@ -28,10 +30,12 @@ class VehicleAssignment extends Model
     ];
 
     protected $casts = [
-        'start_odometer' => 'decimal:2',
-        'end_odometer'   => 'decimal:2',
-        'departure_time' => 'datetime',
-        'return_time'    => 'datetime',
+        'destination_latitude'  => 'float',
+        'destination_longitude' => 'float',
+        'start_odometer'        => 'decimal:2',
+        'end_odometer'          => 'decimal:2',
+        'departure_time'        => 'datetime',
+        'return_time'           => 'datetime',
     ];
 
     public function getActivitylogOptions(): LogOptions

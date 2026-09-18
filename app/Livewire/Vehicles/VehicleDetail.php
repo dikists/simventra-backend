@@ -20,6 +20,8 @@ class VehicleDetail extends Component
     public bool $showDispatchModal = false;
     public ?string $selectedDriverId = null;
     public ?string $destination = null;
+    public ?float $destinationLat = null;
+    public ?float $destinationLng = null;
     public ?string $dispatchOdometer = null;
     public ?string $dispatchNotes = null;
 
@@ -46,6 +48,8 @@ class VehicleDetail extends Component
         $this->dispatchOdometer = (string) $this->vehicle->current_odometer_km;
         $this->selectedDriverId = null;
         $this->destination = '';
+        $this->destinationLat = null;
+        $this->destinationLng = null;
         $this->dispatchNotes = '';
         $this->showDispatchModal = true;
     }
@@ -55,6 +59,8 @@ class VehicleDetail extends Component
         $this->validate([
             'selectedDriverId' => 'required|exists:employees,id',
             'destination'      => 'nullable|string|max:255',
+            'destinationLat'   => 'nullable|numeric|between:-90,90',
+            'destinationLng'   => 'nullable|numeric|between:-180,180',
             'dispatchOdometer' => 'required|numeric|min:0',
             'dispatchNotes'    => 'nullable|string|max:1000',
         ], [
@@ -73,15 +79,17 @@ class VehicleDetail extends Component
 
         // 1. Create VehicleAssignment record
         $assignment = VehicleAssignment::create([
-            'vehicle_id'     => $this->vehicle->id,
-            'driver_id'      => $driver->id,
-            'assigned_by'    => auth()->id(),
-            'status'         => 'assigned',
-            'origin'         => 'Gudang Utama',
-            'destination'    => $this->destination,
-            'start_odometer' => (float) $this->dispatchOdometer,
-            'departure_time' => now(),
-            'notes'          => $this->dispatchNotes,
+            'vehicle_id'            => $this->vehicle->id,
+            'driver_id'             => $driver->id,
+            'assigned_by'           => auth()->id(),
+            'status'                => 'assigned',
+            'origin'                => 'Gudang Utama',
+            'destination'           => $this->destination,
+            'destination_latitude'  => $this->destinationLat ? (float) $this->destinationLat : null,
+            'destination_longitude' => $this->destinationLng ? (float) $this->destinationLng : null,
+            'start_odometer'        => (float) $this->dispatchOdometer,
+            'departure_time'        => now(),
+            'notes'                 => $this->dispatchNotes,
         ]);
 
         // 2. Auto-link driver to User account if not yet linked
@@ -110,9 +118,11 @@ class VehicleDetail extends Component
                 '🔔 Penugasan Armada Baru!',
                 "Armada {$this->vehicle->license_plate} siap ditugaskan ke {$this->destination}. Buka aplikasi untuk konfirmasi.",
                 [
-                    'assignment_id' => $assignment->id,
-                    'license_plate' => $this->vehicle->license_plate,
-                    'status'        => 'assigned',
+                    'assignment_id'         => $assignment->id,
+                    'license_plate'         => $this->vehicle->license_plate,
+                    'status'                => 'assigned',
+                    'destination_latitude'  => $assignment->destination_latitude,
+                    'destination_longitude' => $assignment->destination_longitude,
                 ]
             );
         }

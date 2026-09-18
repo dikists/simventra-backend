@@ -72,7 +72,7 @@
                 <div id="fleet-map" style="width:100%;height:100%;z-index:1;"></div>
 
                 <!-- Floating Map Overlay Legend -->
-                <div style="position:absolute;bottom:20px;left:20px;z-index:999;background:rgba(255,255,255,0.95);backdrop-filter:blur(4px);padding:10px 14px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);border:1px solid #e2e8f0;font-size:12px;display:flex;align-items:center;gap:14px;">
+                <div style="position:absolute;bottom:20px;left:20px;z-index:999;background:rgba(255,255,255,0.95);backdrop-filter:blur(4px);padding:10px 14px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);border:1px solid #e2e8f0;font-size:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
                     <div style="display:flex;align-items:center;gap:6px;">
                         <div style="width:12px;height:12px;border-radius:50%;background:#0d6efd;"></div>
                         <span style="font-weight:600;color:#334155;">Armada Bergerak</span>
@@ -82,8 +82,20 @@
                         <span style="font-weight:600;color:#334155;">Halal Dedicated</span>
                     </div>
                     <div style="display:flex;align-items:center;gap:6px;">
-                        <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b;"></div>
-                        <span style="font-weight:600;color:#334155;">Gudang Utama</span>
+                        <span style="font-size:13px;">🏢</span>
+                        <span style="font-weight:600;color:#334155;">Gudang Asal</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:13px;">🏁</span>
+                        <span style="font-weight:600;color:#334155;">Titik Tujuan</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-weight:800;color:#6366f1;font-size:14px;">━</span>
+                        <span style="font-weight:600;color:#334155;">Jejak GPS</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-weight:800;color:#0d6efd;font-size:14px;">╍</span>
+                        <span style="font-weight:600;color:#334155;">Rencana Rute</span>
                     </div>
                 </div>
             </div>
@@ -122,8 +134,7 @@
         }
         .leaflet-popup-content-wrapper {
             border-radius: 10px;
-            padding: 4px;
-            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
         }
     </style>
 
@@ -131,7 +142,11 @@
 <script>
     let map;
     let markers = {};
-    const WAREHOUSE_COORDS = [{{ $warehouse->latitude }}, {{ $warehouse->longitude }}];
+    let destMarkers = {};
+    let routePolylines = {};
+    let trailPolylines = {};
+    let fleetDataMap = {};
+    const WAREHOUSE_COORDS = [{{ (float) $warehouse->latitude }}, {{ (float) $warehouse->longitude }}];
 
     window.initMap = function() {
         const mapContainer = document.getElementById('fleet-map');
@@ -193,51 +208,51 @@
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:36px;height:36px;margin:0 auto 8px;display:block;opacity:0.6;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                     Tidak ada armada yang sedang di perjalanan.<br>
                     <span style="font-size:11.5px;color:#cbd5e1;">Semua unit berada di gudang atau belum dimulai oleh sopir.</span>
-                <\/div>
+                </div>
             `;
             return;
         }
 
         let listHtml = '';
-        const bounds = [WAREHOUSE_COORDS];
+        fleetDataMap = {};
 
         fleets.forEach(fleet => {
             const lat = fleet.latitude;
             const lng = fleet.longitude;
-            bounds.push([lat, lng]);
+            fleetDataMap[fleet.assignment_id] = fleet;
 
-            // 1. Update/Add Leaflet Marker
+            // 1. Update/Add Leaflet Vehicle Marker
             const markerClass = fleet.is_halal ? 'halal-marker' : '';
             const customIcon = L.divIcon({
                 className: markerClass,
                 html: `
                     <div class="vehicle-marker-pulse">
-                        <div class="vehicle-marker-inner"><\/div>
-                    <\/div>
+                        <div class="vehicle-marker-inner"></div>
+                    </div>
                 `,
                 iconSize: [24, 24],
                 iconAnchor: [12, 12]
             });
 
             const popupHtml = `
-                <div style="min-width:200px;font-family:'Plus Jakarta Sans',sans-serif;">
+                <div style="min-width:210px;font-family:'Plus Jakarta Sans',sans-serif;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
                         <span style="background:#1e293b;color:#fff;padding:2px 8px;border-radius:4px;font-weight:700;font-size:12px;letter-spacing:1px;font-family:monospace;">
                             ${fleet.license_plate}
                         </span>
                         ${fleet.is_halal ? '<span style="color:#10b981;font-weight:700;font-size:11px;">✓ Halal</span>' : ''}
-                    <\/div>
-                    <div style="font-size:13px;font-weight:700;color:#1e293b;">${fleet.brand_model}<\/div>
-                    <div style="font-size:12px;color:#64748b;margin-bottom:6px;">Sopir: <strong>${fleet.driver_name}</strong><\/div>
+                    </div>
+                    <div style="font-size:13px;font-weight:700;color:#1e293b;">${fleet.brand_model}</div>
+                    <div style="font-size:12px;color:#64748b;margin-bottom:6px;">Sopir: <strong>${fleet.driver_name}</strong></div>
                     <div style="padding:6px 8px;background:#f1f5f9;border-radius:6px;font-size:11.5px;margin-bottom:6px;">
-                        <div>📍 ${fleet.destination}<\/div>
-                        <div style="margin-top:2px;">⚡ Kecepatan: <strong>${fleet.speed_kmh} KM/Jam</strong><\/div>
-                        <div style="font-size:10.5px;color:#94a3b8;margin-top:2px;">Update: ${fleet.last_updated}<\/div>
-                    <\/div>
+                        <div>📍 <strong>Tujuan:</strong> ${fleet.destination}</div>
+                        <div style="margin-top:2px;">⚡ <strong>Kecepatan:</strong> ${fleet.speed_kmh} KM/Jam</div>
+                        <div style="font-size:10.5px;color:#94a3b8;margin-top:2px;">Update: ${fleet.last_updated}</div>
+                    </div>
                     <a href="/kendaraan/${fleet.vehicle_id}" style="display:block;text-align:center;padding:6px;background:#0d6efd;color:#fff;text-decoration:none;border-radius:6px;font-size:12px;font-weight:600;">
                         Lihat Detail Armada
                     </a>
-                <\/div>
+                </div>
             `;
 
             if (markers[fleet.assignment_id]) {
@@ -249,7 +264,63 @@
                 markers[fleet.assignment_id] = marker;
             }
 
-            // 2. Generate sidebar card item
+            // 2. Add/Update Historical Trail Polyline (Jejak GPS riil)
+            if (fleet.trail && fleet.trail.length > 0 && map) {
+                const trailCoords = [WAREHOUSE_COORDS, ...fleet.trail, [lat, lng]];
+                if (trailPolylines[fleet.assignment_id]) {
+                    trailPolylines[fleet.assignment_id].setLatLngs(trailCoords);
+                } else {
+                    trailPolylines[fleet.assignment_id] = L.polyline(trailCoords, {
+                        color: '#6366f1',
+                        weight: 4,
+                        opacity: 0.85
+                    }).addTo(map);
+                }
+            }
+
+            // 3. Add/Update Destination Marker 🏁 and Planned Route Polyline
+            if (fleet.destination_latitude && fleet.destination_longitude && map) {
+                const destLat = parseFloat(fleet.destination_latitude);
+                const destLng = parseFloat(fleet.destination_longitude);
+
+                const destIcon = L.divIcon({
+                    className: 'dest-marker-div',
+                    html: '<div style="width:28px;height:28px;border-radius:8px;background:#10b981;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;box-shadow:0 3px 8px rgba(16,185,129,0.5);border:2px solid #fff;">🏁</div>',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+
+                const destPopup = `
+                    <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;">
+                        <strong style="color:#065f46;">🏁 Titik Tujuan (${fleet.license_plate}):</strong><br>
+                        ${fleet.destination}
+                    </div>
+                `;
+
+                if (destMarkers[fleet.assignment_id]) {
+                    destMarkers[fleet.assignment_id].setLatLng([destLat, destLng]);
+                    destMarkers[fleet.assignment_id].getPopup().setContent(destPopup);
+                } else {
+                    const dMarker = L.marker([destLat, destLng], { icon: destIcon }).addTo(map);
+                    dMarker.bindPopup(destPopup);
+                    destMarkers[fleet.assignment_id] = dMarker;
+                }
+
+                // Planned route polyline (Dashed line from current position to destination)
+                const plannedLine = [[lat, lng], [destLat, destLng]];
+                if (routePolylines[fleet.assignment_id]) {
+                    routePolylines[fleet.assignment_id].setLatLngs(plannedLine);
+                } else {
+                    routePolylines[fleet.assignment_id] = L.polyline(plannedLine, {
+                        color: '#0d6efd',
+                        weight: 3,
+                        dashArray: '6, 8',
+                        opacity: 0.75
+                    }).addTo(map);
+                }
+            }
+
+            // 4. Generate sidebar card item
             listHtml += `
                 <div onclick="focusVehicle(${lat}, ${lng}, ${fleet.assignment_id})" style="padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
                     <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -262,9 +333,11 @@
                     <div style="font-size:11.5px;color:#64748b;margin-top:4px;">
                         Sopir: <strong>${fleet.driver_name}</strong>
                     </div>
-                    <div style="font-size:11px;color:#0ea5e9;margin-top:2px;">
-                        📍 ${fleet.destination}
+                    <div style="font-size:11px;color:#0ea5e9;margin-top:2px;display:flex;align-items:center;gap:4px;">
+                        <span>📍</span>
+                        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fleet.destination}</span>
                     </div>
+                    ${fleet.destination_latitude ? '<div style="font-size:10px;color:#10b981;font-weight:700;margin-top:2px;">🏁 Ada titik koordinat tujuan</div>' : ''}
                 </div>
             `;
         });
@@ -273,11 +346,20 @@
     }
 
     window.focusVehicle = function(lat, lng, assignmentId) {
-        if (map) {
+        if (!map) return;
+        const fleet = fleetDataMap[assignmentId];
+
+        if (fleet && fleet.destination_latitude && fleet.destination_longitude) {
+            const destLat = parseFloat(fleet.destination_latitude);
+            const destLng = parseFloat(fleet.destination_longitude);
+            // Fit bounds to show both vehicle position and destination clearly!
+            map.fitBounds([[lat, lng], [destLat, destLng]], { padding: [60, 60] });
+        } else {
             map.setView([lat, lng], 15);
-            if (markers[assignmentId]) {
-                markers[assignmentId].openPopup();
-            }
+        }
+
+        if (markers[assignmentId]) {
+            markers[assignmentId].openPopup();
         }
     };
 
