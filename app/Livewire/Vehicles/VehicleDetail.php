@@ -6,6 +6,7 @@ use App\Models\Vehicle;
 use App\Models\Employee;
 use App\Models\User;
 use App\Models\VehicleAssignment;
+use App\Models\Warehouse;
 use App\Services\PushNotificationService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -287,11 +288,16 @@ class VehicleDetail extends Component
             ->take(10)
             ->get();
 
+        $warehouses = Warehouse::where('is_active', true)->get();
+        $primaryWarehouse = Warehouse::getPrimary();
+
         return view('livewire.vehicles.vehicle-detail', [
             'vehicle'           => $this->vehicle,
             'availableDrivers'  => $availableDrivers,
             'assignmentHistory' => $assignmentHistory,
             'activeAssignment'  => $this->vehicle->activeAssignment,
+            'warehouses'        => $warehouses,
+            'primaryWarehouse'  => $primaryWarehouse,
         ])->layout('layouts.app', ['title' => 'Detail Armada - ' . $this->vehicle->license_plate]);
     }
 }

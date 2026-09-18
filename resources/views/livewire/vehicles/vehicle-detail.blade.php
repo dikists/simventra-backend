@@ -1,3 +1,8 @@
+@assets
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+@endassets
+
 <div>
     <!-- Success Alert -->
     @if(session()->has('success'))
@@ -401,8 +406,8 @@
     ======================================================== -->
     @if($showDispatchModal)
     <div style="position:fixed;inset:0;background:rgba(15,23,42,0.6);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;">
-        <div class="card" style="width:100%;max-width:540px;background:#fff;border-radius:12px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);overflow:hidden;animation:fadeIn 0.15s ease-out;">
-            <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding:16px 20px;">
+        <div class="card" style="width:100%;max-width:620px;max-height:92vh;display:flex;flex-direction:column;background:#fff;border-radius:12px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);overflow:hidden;animation:fadeIn 0.15s ease-out;">
+            <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding:16px 20px;flex-shrink:0;">
                 <div>
                     <h3 class="card-title" style="margin:0;font-size:16px;font-weight:700;">Tugaskan Sopir ke Armada</h3>
                     <div style="font-size:12px;color:#64748b;margin-top:2px;">Plat: <strong>{{ strtoupper($vehicle->license_plate) }}</strong> ({{ $vehicle->brand }} {{ $vehicle->model }})</div>
@@ -412,8 +417,8 @@
                 </button>
             </div>
 
-            <form wire:submit="dispatchVehicle">
-                <div class="card-body" style="padding:20px;display:flex;flex-direction:column;gap:14px;">
+            <form wire:submit="dispatchVehicle" style="display:flex;flex-direction:column;overflow:hidden;flex:1;">
+                <div class="card-body" style="padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;">
                     <div>
                         <label class="form-label">Pilih Sopir Tersedia *</label>
                         <select wire:model="selectedDriverId" class="form-select @error('selectedDriverId') form-input-error @enderror">
@@ -430,10 +435,80 @@
                         @endif
                     </div>
 
-                    <div>
-                        <label class="form-label">Tujuan / Rute Pengiriman</label>
-                        <input wire:model="destination" type="text" class="form-input" placeholder="Contoh: Pengiriman Logistik Jakarta - Surabaya">
-                        @error('destination') <p class="form-error">{{ $message }}</p> @enderror
+                    <!-- Destination with Map Picker & Warehouse Shortcut -->
+                    <div x-data="{ showMap: false }">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+                            <label class="form-label" style="margin-bottom:0;">Tujuan / Rute Pengiriman</label>
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                @if(isset($warehouses) && $warehouses->isNotEmpty())
+                                <select onchange="if(this.value){ window.selectWarehousePreset(this.value); this.value=''; }"
+                                        style="font-size:11px;padding:3px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;color:#334155;cursor:pointer;max-width:170px;">
+                                    <option value="">🏢 Gudang Terdaftar...</option>
+                                    @foreach($warehouses as $wh)
+                                        <option value="{{ json_encode(['name' => $wh->name, 'address' => $wh->address, 'lat' => $wh->latitude, 'lng' => $wh->longitude]) }}">
+                                            {{ $wh->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @endif
+
+                                <button type="button"
+                                        @click="showMap = !showMap; if(showMap) { $nextTick(() => { window.initDestinationPicker(); }); }"
+                                        style="font-size:11.5px;font-weight:600;padding:4px 10px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                                    <span x-show="!showMap">🗺️ Cari via Map</span>
+                                    <span x-show="showMap" style="display:none;">✕ Tutup Map</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <input wire:model="destination" id="dispatch-destination-input" type="text" class="form-input" placeholder="Contoh: Jl. Daan Mogot KM 12 / Gudang Cakung / -6.2088, 106.8456">
+                            @error('destination') <p class="form-error">{{ $message }}</p> @enderror
+                        </div>
+
+                        <!-- Interactive Leaflet Map Picker Panel -->
+                        <div x-show="showMap" x-transition
+                             style="display:none;margin-top:10px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;padding:12px;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                                <div style="font-size:12px;font-weight:700;color:#1e293b;">
+                                    📍 Tentukan Lokasi Tujuan di Peta
+                                </div>
+                                <div style="font-size:11px;color:#64748b;">
+                                    Klik titik peta / geser pin untuk memilih
+                                </div>
+                            </div>
+
+                            <!-- Search Input inside Map -->
+                            <div style="display:flex;gap:6px;margin-bottom:6px;">
+                                <input type="text" id="dest-map-search"
+                                       placeholder="Ketik alamat/nama jalan/gedung atau koordinat Google Maps..."
+                                       style="flex:1;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;outline:none;"
+                                       onkeydown="if(event.key==='Enter'){event.preventDefault();window.searchDestinationOnMap();}">
+                                <button type="button" onclick="window.searchDestinationOnMap()"
+                                        style="padding:7px 12px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">
+                                    Cari
+                                </button>
+                            </div>
+                            <div id="dest-map-status" style="font-size:11px;margin-bottom:6px;"></div>
+
+                            <!-- Leaflet Map Container -->
+                            <div id="dest-picker-map" wire:ignore style="width:100%;height:250px;border-radius:8px;border:1px solid #cbd5e1;z-index:1;"></div>
+
+                            <!-- Selected Destination Display & Apply -->
+                            <div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;padding:8px 10px;border-radius:6px;border:1px solid #e2e8f0;">
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;">Titik Lokasi Terdeteksi:</div>
+                                    <div id="dest-map-picked-label" style="font-size:11.5px;color:#0f172a;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                        Belum ada titik yang dipilih di peta
+                                    </div>
+                                </div>
+                                <button type="button"
+                                        onclick="window.applyDestinationPicked()"
+                                        style="background:#10b981;color:#fff;border:none;padding:6px 12px;font-size:11.5px;font-weight:700;border-radius:6px;cursor:pointer;white-space:nowrap;">
+                                    ✓ Gunakan Lokasi
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <div>
@@ -445,7 +520,7 @@
 
                     <div>
                         <label class="form-label">Catatan / Instruksi Muatan</label>
-                        <textarea wire:model="dispatchNotes" class="form-textarea" rows="2" placeholder="Catatan khusus, nomor surat jalan, atau kontak penerima..."></textarea>
+                        <textarea wire:model="dispatchNotes" class="form-input" rows="3" style="width:100%;min-height:76px;resize:vertical;font-family:inherit;" placeholder="Catatan khusus, nomor surat jalan, atau kontak penerima..."></textarea>
                     </div>
                 </div>
 
@@ -505,7 +580,7 @@
 
                     <div>
                         <label class="form-label">Catatan Pemeriksaan Armada</label>
-                        <textarea wire:model="returnNotes" class="form-textarea" rows="2" placeholder="Catatan kondisi fisik, sisa bensin, keluhan sopir selama perjalanan..."></textarea>
+                        <textarea wire:model="returnNotes" class="form-input" rows="3" style="width:100%;min-height:76px;resize:vertical;font-family:inherit;" placeholder="Catatan kondisi fisik, sisa bensin, keluhan sopir selama perjalanan..."></textarea>
                     </div>
                 </div>
 
@@ -520,3 +595,194 @@
     </div>
     @endif
 </div>
+
+@script
+<script>
+    let destPickerMap = null;
+    let destPickerMarker = null;
+    let currentPickedText = '';
+
+    const defaultLat = {{ (float) ($primaryWarehouse->latitude ?? -6.2088) }};
+    const defaultLng = {{ (float) ($primaryWarehouse->longitude ?? 106.8456) }};
+
+    window.initDestinationPicker = function() {
+        const container = document.getElementById('dest-picker-map');
+        if (!container) return;
+
+        if (typeof L === 'undefined') {
+            console.warn('Leaflet belum dimuat.');
+            return;
+        }
+
+        // Jika container map telah dibuat ulang oleh Livewire
+        if (destPickerMap) {
+            try {
+                if (destPickerMap._container !== container) {
+                    destPickerMap.remove();
+                    destPickerMap = null;
+                }
+            } catch(e) {
+                destPickerMap = null;
+            }
+        }
+
+        if (!destPickerMap) {
+            destPickerMap = L.map('dest-picker-map', {
+                center: [defaultLat, defaultLng],
+                zoom: 13,
+            });
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(destPickerMap);
+
+            destPickerMarker = L.marker([defaultLat, defaultLng], { draggable: true })
+                .addTo(destPickerMap)
+                .bindPopup('📍 Geser atau klik peta untuk memilih tujuan')
+                .openPopup();
+
+            destPickerMap.on('click', function(e) {
+                const { lat, lng } = e.latlng;
+                window.updateDestMarker(lat, lng);
+            });
+
+            destPickerMarker.on('dragend', function(e) {
+                const { lat, lng } = e.target.getLatLng();
+                window.updateDestMarker(lat, lng);
+            });
+        }
+
+        setTimeout(() => {
+            if (destPickerMap) {
+                destPickerMap.invalidateSize();
+            }
+        }, 200);
+    };
+
+    window.updateDestMarker = function(lat, lng, customLabel = null) {
+        if (destPickerMarker && destPickerMap) {
+            destPickerMarker.setLatLng([lat, lng]);
+            destPickerMap.panTo([lat, lng]);
+        }
+
+        const labelEl = document.getElementById('dest-map-picked-label');
+
+        if (customLabel) {
+            currentPickedText = customLabel;
+            if (labelEl) labelEl.innerText = customLabel;
+            if (destPickerMarker) destPickerMarker.bindPopup(customLabel).openPopup();
+            return;
+        }
+
+        if (labelEl) labelEl.innerText = `Mencari alamat... (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+
+        fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=id`)
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.display_name) {
+                    currentPickedText = data.display_name;
+                    if (labelEl) labelEl.innerText = data.display_name;
+                    if (destPickerMarker) {
+                        destPickerMarker.bindPopup(data.display_name).openPopup();
+                    }
+                } else {
+                    currentPickedText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                    if (labelEl) labelEl.innerText = currentPickedText;
+                }
+            })
+            .catch(() => {
+                currentPickedText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                if (labelEl) labelEl.innerText = currentPickedText;
+            });
+    };
+
+    window.searchDestinationOnMap = function() {
+        const inputEl = document.getElementById('dest-map-search');
+        if (!inputEl) return;
+        const q = inputEl.value.trim();
+        const statusEl = document.getElementById('dest-map-status');
+        if (!q) return;
+
+        // 1. Cek apakah format koordinat Google Maps (misal: -6.2202, 106.8579)
+        const coordMatch = q.match(/(-?\d{1,2}\.\d+)[,\s]+(-?\d{1,3}\.\d+)/);
+        if (coordMatch) {
+            const latF = parseFloat(coordMatch[1]);
+            const lngF = parseFloat(coordMatch[2]);
+            if (latF >= -90 && latF <= 90 && lngF >= -180 && lngF <= 180) {
+                if (destPickerMap) destPickerMap.setView([latF, lngF], 16);
+                window.updateDestMarker(latF, lngF);
+                if (statusEl) {
+                    statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Koordinat Google Maps terdeteksi!</span>';
+                    setTimeout(() => { if (statusEl) statusEl.innerHTML = ''; }, 3500);
+                }
+                return;
+            }
+        }
+
+        // 2. Cari via Nominatim OpenStreetMap
+        if (statusEl) statusEl.innerHTML = '<span style="color:#2563eb;">Mencari lokasi di OpenStreetMap...</span>';
+
+        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=id`)
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    const { lat, lon, display_name } = data[0];
+                    const latF = parseFloat(lat);
+                    const lngF = parseFloat(lon);
+
+                    if (destPickerMap) {
+                        destPickerMap.setView([latF, lngF], 16);
+                        destPickerMap.invalidateSize();
+                    }
+                    window.updateDestMarker(latF, lngF, display_name);
+                    if (statusEl) {
+                        statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Lokasi ditemukan: ' + display_name + '</span>';
+                        setTimeout(() => { if (statusEl) statusEl.innerHTML = ''; }, 4500);
+                    }
+                } else {
+                    if (statusEl) {
+                        statusEl.innerHTML = '<span style="color:#ef4444;">❌ Lokasi tidak ditemukan. Coba gunakan nama jalan/daerah atau paste koordinat Google Maps.</span>';
+                    }
+                }
+            })
+            .catch(() => {
+                if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444;">❌ Gagal menghubungi server pencari peta.</span>';
+            });
+    };
+
+    window.applyDestinationPicked = function() {
+        if (!currentPickedText) return;
+        $wire.set('destination', currentPickedText);
+        const input = document.getElementById('dispatch-destination-input');
+        if (input) {
+            input.value = currentPickedText;
+        }
+        const labelEl = document.getElementById('dest-map-picked-label');
+        if (labelEl) {
+            labelEl.innerHTML = '<span style="color:#059669;font-weight:700;">✓ Alamat berhasil disetel ke form tujuan!</span>';
+        }
+    };
+
+    window.selectWarehousePreset = function(jsonStr) {
+        try {
+            const wh = JSON.parse(jsonStr);
+            const text = wh.name + (wh.address ? ' - ' + wh.address : '');
+            $wire.set('destination', text);
+            const input = document.getElementById('dispatch-destination-input');
+            if (input) input.value = text;
+
+            if (wh.lat && wh.lng) {
+                window.initDestinationPicker();
+                setTimeout(() => {
+                    if (destPickerMap) {
+                        destPickerMap.setView([wh.lat, wh.lng], 16);
+                    }
+                    window.updateDestMarker(wh.lat, wh.lng, text);
+                }, 250);
+            }
+        } catch(e) {}
+    };
+</script>
+@endscript
+

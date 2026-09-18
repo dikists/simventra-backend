@@ -656,12 +656,30 @@
         outline: none;
     }
 
-    .form-input:focus {
+    .form-textarea {
+        width: 100%;
+        padding: 9px 14px;
+        border: 1px solid #ced4da;
+        border-radius: 8px;
+        font-size: 13.5px;
+        color: #495057;
+        background: #fff;
+        transition: border-color .15s, box-shadow .15s;
+        outline: none;
+        resize: vertical;
+        min-height: 76px;
+        font-family: inherit;
+        box-sizing: border-box;
+    }
+
+    .form-input:focus,
+    .form-textarea:focus {
         border-color: #556ee6;
         box-shadow: 0 0 0 3px rgba(85,110,230,.15);
     }
 
-    .form-input::placeholder { color: #adb5bd; }
+    .form-input::placeholder,
+    .form-textarea::placeholder { color: #adb5bd; }
 
     .form-input-error {
         border-color: #f46a6a;
