@@ -58,7 +58,7 @@ class ReportIndex extends Component
     protected function exportVehiclesCsv(): StreamedResponse
     {
         $filename = 'laporan-kendaraan-' . date('Y-m-d-His') . '.csv';
-        $vehicles = Vehicle::with('driver')->orderBy('license_plate')->get();
+        $vehicles = Vehicle::with('assignedDriver')->orderBy('license_plate')->get();
 
         return response()->streamDownload(function () use ($vehicles) {
             $handle = fopen('php://output', 'w');
@@ -77,7 +77,7 @@ class ReportIndex extends Component
                     $v->color ?? '-',
                     ucfirst($v->fuel_type),
                     $v->is_halal_dedicated ? 'Ya' : 'Tidak',
-                    $v->driver?->name ?? 'Belum Ditugaskan',
+                    $v->assignedDriver?->name ?? 'Belum Ditugaskan',
                     ucfirst($v->status),
                 ]);
             }

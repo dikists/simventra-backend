@@ -52,6 +52,11 @@ class Vehicle extends Model
         return $this->belongsTo(Employee::class, 'assigned_driver_id');
     }
 
+    public function driver()
+    {
+        return $this->belongsTo(Employee::class, 'assigned_driver_id');
+    }
+
     public function assignments()
     {
         return $this->hasMany(VehicleAssignment::class);
