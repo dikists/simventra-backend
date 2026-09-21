@@ -81,6 +81,16 @@
                     d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
             </svg>
             <span>Live GPS Armada</span>
+            @php
+                $silentGpsCount = \App\Models\VehicleAssignment::where('status', 'on_trip')
+                    ->where(function($q) {
+                        $q->whereNull('last_ping_at')->where('departure_time', '<', now()->subMinutes(5))
+                          ->orWhere('last_ping_at', '<', now()->subMinutes(5));
+                    })->count();
+            @endphp
+            @if($silentGpsCount > 0)
+            <span class="sidebar-badge" style="background:#ef4444;color:#fff;font-weight:700;">{{ $silentGpsCount }}</span>
+            @endif
         </a>
         @endcanany
 
@@ -226,7 +236,8 @@
             <!-- Notifications -->
             @php
                 $alertCount = \App\Models\VehicleDocument::expiringSoon(7)->count()
-                            + \App\Models\EmployeeDocument::expiringSoon(7)->count();
+                            + \App\Models\EmployeeDocument::expiringSoon(7)->count()
+                            + ($silentGpsCount ?? 0);
             @endphp
             <a href="{{ route('reminders.index') }}" class="topbar-icon-btn" title="Notifikasi Dokumen">
                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">

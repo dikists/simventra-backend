@@ -458,8 +458,15 @@ class DriverApiController extends Controller
             ->where('status', 'on_trip')
             ->get();
 
-        $fleets = $activeAssignments->map(function (VehicleAssignment $assignment) {
+        $timeoutMinutes = (int) config('simventra.heartbeat.timeout_minutes', 5);
+        $cutoffAt = now()->subMinutes($timeoutMinutes);
+
+        $fleets = $activeAssignments->map(function (VehicleAssignment $assignment) use ($cutoffAt) {
             $latest = $assignment->latestLocation;
+            $refTime = $assignment->last_ping_at ?? $assignment->departure_time ?? $assignment->updated_at;
+            $isSilent = $refTime ? \Carbon\Carbon::instance($refTime)->isBefore($cutoffAt) : false;
+            $silenceMinutes = $refTime ? max(1, (int) abs(now()->diffInMinutes($refTime))) : 0;
+
             return [
                 'assignment_id' => $assignment->id,
                 'vehicle_id'    => $assignment->vehicle_id,
@@ -479,6 +486,8 @@ class DriverApiController extends Controller
                 'heading'               => $latest ? (float) $latest->heading : 0,
                 'last_updated'          => $latest ? $latest->recorded_at->diffForHumans() : 'Belum ada sinyal GPS',
                 'has_gps'               => (bool) $latest,
+                'is_silent'             => $isSilent,
+                'silence_minutes'       => $silenceMinutes,
                 'trail'                 => $assignment->locations()->latest('recorded_at')->take(30)->get()->reverse()->values()->map(function($loc) {
                     return [(float) $loc->latitude, (float) $loc->longitude];
                 }),

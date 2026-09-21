@@ -321,13 +321,17 @@
             }
 
             // 4. Generate sidebar card item
+            const isSilent = fleet.is_silent;
+            const cardBg = isSilent ? 'background:#fff1f2;border:1.5px solid #ef4444;' : 'background:#f8fafc;border:1px solid #e2e8f0;';
+            const statusBadge = isSilent 
+                ? `<span style="font-size:10.5px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 6px;border-radius:4px;border:1px solid #fca5a5;">🚨 Sinyal Putus (${fleet.silence_minutes}m)</span>`
+                : `<span style="font-size:11px;font-weight:700;color:${fleet.speed_kmh > 0 ? '#10b981' : '#f59e0b'};">${fleet.speed_kmh} km/h</span>`;
+
             listHtml += `
-                <div onclick="focusVehicle(${lat}, ${lng}, ${fleet.assignment_id})" style="padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+                <div onclick="focusVehicle(${lat}, ${lng}, ${fleet.assignment_id})" style="padding:12px;${cardBg}border-radius:8px;cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.filter='brightness(0.96)'" onmouseout="this.style.filter='none'">
                     <div style="display:flex;align-items:center;justify-content:space-between;">
                         <span style="font-weight:700;color:#1e293b;font-family:monospace;font-size:13px;">${fleet.license_plate}</span>
-                        <span style="font-size:11px;font-weight:700;color:${fleet.speed_kmh > 0 ? '#10b981' : '#f59e0b'};">
-                            ${fleet.speed_kmh} km/h
-                        </span>
+                        ${statusBadge}
                     </div>
                     <div style="font-size:12px;color:#475569;margin-top:2px;">${fleet.brand_model}</div>
                     <div style="font-size:11.5px;color:#64748b;margin-top:4px;">
@@ -337,6 +341,7 @@
                         <span>📍</span>
                         <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fleet.destination}</span>
                     </div>
+                    ${isSilent ? `<div style="font-size:10.5px;color:#dc2626;font-weight:700;margin-top:4px;">⚠️ Terakhir Update: ${fleet.last_updated}</div>` : ''}
                     ${fleet.destination_latitude ? '<div style="font-size:10px;color:#10b981;font-weight:700;margin-top:2px;">🏁 Ada titik koordinat tujuan</div>' : ''}
                 </div>
             `;

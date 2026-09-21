@@ -11,7 +11,74 @@
         </a>
     </div>
 
-    <!-- Critical Alert -->
+    <!-- Control Tower Fleet GPS Alert -->
+    @if(isset($silentTrips) && count($silentTrips) > 0)
+    <div style="background:linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%);border:2px solid #ef4444;border-radius:16px;padding:20px 24px;margin-bottom:24px;box-shadow:0 10px 25px -5px rgba(239,68,68,0.2);">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+            <div style="display:flex;align-items:flex-start;gap:14px;">
+                <div style="width:46px;height:46px;border-radius:12px;background:#ef4444;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;box-shadow:0 4px 14px rgba(239,68,68,0.4);">
+                    🚨
+                </div>
+                <div>
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <h3 style="margin:0;font-size:16px;font-weight:800;color:#991b1b;letter-spacing:0.3px;">
+                            ALERT CONTROL TOWER: {{ count($silentTrips) }} ARMADA TERPUTUS SINYAL GPS!
+                        </h3>
+                        <span style="background:#dc2626;color:#fff;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:0.5px;">
+                            Pelacakan Hilang
+                        </span>
+                    </div>
+                    <p style="margin:5px 0 0 0;font-size:13px;color:#7f1d1d;line-height:1.5;">
+                        Sistem mendeteksi HP sopir tidak mengirim koordinat GPS lebih dari 5 menit saat perjalanan aktif. Kemungkinan aplikasi tertutup, HP mati, atau di area blank spot.
+                    </p>
+                </div>
+            </div>
+            <a href="{{ route('tracking.index') }}" class="btn" style="background:#dc2626;color:#fff;font-weight:700;padding:10px 18px;border-radius:10px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-size:13px;box-shadow:0 4px 12px rgba(220,38,38,0.35);">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:18px;height:18px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                Buka Peta Live GPS →
+            </a>
+        </div>
+
+        <!-- Cards Unit yang Hilang Sinyal -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:14px;margin-top:16px;">
+            @foreach($silentTrips as $item)
+            <div style="background:#fff;border:1.5px solid #fca5a5;border-radius:12px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="background:#0f172a;color:#fff;padding:6px 12px;border-radius:8px;font-family:monospace;font-weight:800;font-size:13px;letter-spacing:1px;box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+                        {{ $item['license_plate'] }}
+                    </div>
+                    <div>
+                        <div style="font-weight:700;color:#1e293b;font-size:14px;">{{ $item['driver_name'] }}</div>
+                        <div style="font-size:12px;color:#dc2626;font-weight:700;margin-top:2px;">
+                            ⚠️ Diam: {{ $item['silence_mins'] }} Menit <span style="color:#64748b;font-weight:500;">(Terakhir: {{ $item['last_ping'] }})</span>
+                        </div>
+                        <div style="font-size:11.5px;color:#64748b;margin-top:1px;">
+                            Tujuan: <strong>{{ $item['destination'] }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    @if(!empty($item['driver_phone']))
+                    @php
+                        $cleanPhone = preg_replace('/^0/', '62', preg_replace('/[^0-9]/', '', $item['driver_phone']));
+                    @endphp
+                    <a href="https://wa.me/{{ $cleanPhone }}?text=Halo%20{{ urlencode($item['driver_name']) }},%20sistem%20SIMVENTRA%20mendeteksi%20tracking%20GPS%20Anda%20terputus%20sudah%20{{ $item['silence_mins'] }}%20menit.%20Mohon%20segera%20buka%20kembali%20aplikasi%20SIMVENTRA%20Driver." 
+                       target="_blank" 
+                       class="btn" 
+                       style="background:#22c55e;color:#fff;padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:6px;box-shadow:0 3px 8px rgba(34,197,94,0.3);" 
+                       title="Hubungi Sopir via WhatsApp">
+                        <span>💬 WA Sopir</span>
+                    </a>
+                    @endif
+                </div>
+            </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
+    <!-- Critical Alert Dokumen -->
     @if($stats['expiring_soon_7'] > 0)
     <div class="alert alert-danger mb-6">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
@@ -52,7 +119,13 @@
                     <div class="stat-label" style="margin-top:0;margin-bottom:8px;">Kendaraan Aktif</div>
                     <div class="stat-value">{{ number_format($stats['total_vehicles']) }}</div>
                     <div style="margin-top:8px;">
-                        <span class="badge badge-green">Beroperasi</span>
+                        @if(($stats['silent_trips_count'] ?? 0) > 0)
+                        <span class="badge badge-red" style="background:#fee2e2;color:#dc2626;font-weight:700;">
+                            ⚠️ {{ $stats['silent_trips_count'] }} Sinyal Putus
+                        </span>
+                        @else
+                        <span class="badge badge-green">Beroperasi Normal</span>
+                        @endif
                     </div>
                 </div>
                 <div class="stat-icon stat-icon-green">
