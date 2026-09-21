@@ -103,6 +103,8 @@ class CronController extends Controller
                 'latest_alert' => $latestAlert ? [
                     'id'              => $latestAlert->id,
                     'created_at'      => $latestAlert->created_at?->toDateTimeString(),
+                    'driver_name'     => $latestAlert->driver?->name,
+                    'driver_phone'    => $latestAlert->driver?->phone,
                     'wa_sent'         => (bool) $latestAlert->wa_sent,
                     'push_driver'     => (bool) $latestAlert->push_sent_driver,
                     'push_dispatcher' => (bool) $latestAlert->push_sent_dispatcher,

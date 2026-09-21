@@ -97,14 +97,18 @@ class SendHeartbeatAlertJob implements ShouldQueue
         }
 
         // ─────────────────────────────────────────────────────────────────
-        // 3. Push Notification → Semua Dispatcher / Fleet Officer
+        // 3. Notifikasi (Push + WhatsApp) → Semua Dispatcher / Fleet Officer
         // ─────────────────────────────────────────────────────────────────
         $dispatchers = User::whereHas('roles', function ($q) {
             $q->whereIn('name', ['Super Admin', 'Fleet Officer', 'Control Tower Officer']);
         })->where('is_active', true)->get();
 
         $dispatcherCount = 0;
+        $dispatcherWaSentCount = 0;
+        $dispatcherWaMessage = $this->buildDispatcherWaMessage($driverName, $plateNumber, $destination, $minutes);
+
         foreach ($dispatchers as $dispatcher) {
+            // 3a. Push Notification ke App/PWA
             $sent = PushNotificationService::sendToUser(
                 $dispatcher,
                 '🚨 Alert: Tracking Sopir Hilang',
@@ -117,6 +121,19 @@ class SendHeartbeatAlertJob implements ShouldQueue
                 ]
             );
             if ($sent) $dispatcherCount++;
+
+            // 3b. WhatsApp ke Dispatcher / Fleet Officer jika nomor HP terdaftar
+            $targetPhone = $dispatcher->phone ?? $dispatcher->employee?->phone;
+            if (!empty($targetPhone)) {
+                $waOk = WhatsAppService::send($targetPhone, $dispatcherWaMessage);
+                if ($waOk) $dispatcherWaSentCount++;
+            }
+        }
+
+        // 3c. WhatsApp juga ke CONTROL_TOWER_PHONE atau ADMIN_PHONE di .env jika disetel
+        $adminPhone = env('CONTROL_TOWER_PHONE', env('ADMIN_PHONE'));
+        if (!empty($adminPhone)) {
+            WhatsAppService::send($adminPhone, $dispatcherWaMessage);
         }
 
         $pushDispatcher = $dispatcherCount > 0;
@@ -136,7 +153,7 @@ class SendHeartbeatAlertJob implements ShouldQueue
             'silence_minutes'      => $this->silenceMinutes,
             'push_sent_driver'     => $pushDriver,
             'push_sent_dispatcher' => $pushDispatcher,
-            'wa_sent'              => $waSent,
+            'wa_sent'              => $waSent || $dispatcherWaSentCount > 0,
             'error_notes'          => !empty($errorNotes) ? implode('; ', $errorNotes) : null,
         ]);
 
@@ -144,8 +161,32 @@ class SendHeartbeatAlertJob implements ShouldQueue
         $this->assignment->update(['heartbeat_alerted_at' => now()]);
 
         Log::info("[Heartbeat]: Alert selesai untuk {$driverName} – Push sopir: " . ($pushDriver ? '✓' : '✗') .
-            " | WA: " . ($waSent ? '✓' : '✗') .
+            " | WA Sopir: " . ($waSent ? '✓' : '✗') .
+            " | WA Dispatcher: {$dispatcherWaSentCount}" .
             " | Push dispatcher ({$dispatcherCount}): " . ($pushDispatcher ? '✓' : '✗'));
+    }
+
+    /**
+     * Bangun pesan WhatsApp yang informatif untuk dispatcher / control tower
+     */
+    private function buildDispatcherWaMessage(
+        string $driverName,
+        string $plateNumber,
+        string $destination,
+        int $silenceMinutes
+    ): string {
+        $appName = config('app.name', 'Simventra');
+        $time    = now()->timezone('Asia/Jakarta')->format('H:i');
+
+        return "🚨 *PERINGATAN CONTROL TOWER {$appName}*\n\n"
+            . "⚠️ *Armada Kehilangan Kontak GPS*\n\n"
+            . "📋 *Detail Insiden:*\n"
+            . "• Sopir       : *{$driverName}*\n"
+            . "• Kendaraan   : *{$plateNumber}*\n"
+            . "• Tujuan      : {$destination}\n"
+            . "• Terputus    : *{$silenceMinutes} Menit*\n"
+            . "• Pukul       : {$time} WIB\n\n"
+            . "Mohon segera periksa status armada atau hubungi sopir terkait.";
     }
 
     /**
