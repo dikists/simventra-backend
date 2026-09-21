@@ -76,7 +76,7 @@ class CheckDriverHeartbeat extends Command
 
             // ── Cek 3: Cooldown – jangan spam alert
             if (!is_null($assignment->heartbeat_alerted_at)) {
-                $lastAlertMinutesAgo = (int) now()->diffInMinutes($assignment->heartbeat_alerted_at);
+                $lastAlertMinutesAgo = (int) abs(now()->diffInMinutes($assignment->heartbeat_alerted_at));
                 if ($lastAlertMinutesAgo < $cooldownMinutes) {
                     $this->line("   ⏳ Skip [{$plate}] {$driverName} – alert sudah dikirim {$lastAlertMinutesAgo} mnt lalu (cooldown {$cooldownMinutes} mnt).");
                     continue;
