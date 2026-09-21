@@ -24,3 +24,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/driver/task/{id}/location', [DriverApiController::class, 'sendLocation']);
     Route::post('/driver/task/{id}/complete', [DriverApiController::class, 'completeTrip']);
 });
+
+// Cron Webhook Endpoints (Protected by CRON_SECRET for Shared Hosting)
+Route::prefix('cron')->group(function () {
+    Route::match(['get', 'post'], '/schedule', [\App\Http\Controllers\Api\CronController::class, 'schedule']);
+    Route::match(['get', 'post'], '/heartbeat', [\App\Http\Controllers\Api\CronController::class, 'heartbeat']);
+    Route::match(['get', 'post'], '/queue', [\App\Http\Controllers\Api\CronController::class, 'queueWork']);
+});

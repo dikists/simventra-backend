@@ -14,7 +14,6 @@ Schedule::command('simventra:check-document-expiry')
     ->dailyAt('07:00')
     ->timezone('Asia/Jakarta')
     ->withoutOverlapping()
-    ->runInBackground()
     ->emailOutputOnFailure(env('ADMIN_EMAIL', 'admin@simventra.id'));
 
 // SIMVENTRA – Auto-Recall Penugasan Armada
