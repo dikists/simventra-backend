@@ -387,10 +387,15 @@ class DriverApiController extends Controller
             'recorded_at'   => now(),
         ]);
 
+        // ── Heartbeat: perbarui timestamp lokasi terakhir di assignment
+        // Ini digunakan oleh CheckDriverHeartbeat untuk mendeteksi sopir yang diam
+        $assignment->update(['last_ping_at' => now()]);
+
         return response()->json([
             'success'     => true,
             'recorded_at' => $location->recorded_at->toIso8601String(),
         ]);
+
     }
 
     /**

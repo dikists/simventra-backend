@@ -35,4 +35,18 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Wablas – WhatsApp Gateway
+    |--------------------------------------------------------------------------
+    | Daftarkan token dan base URL server Wablas Anda di .env:
+    |   WABLAS_TOKEN=your_token_here
+    |   WABLAS_BASE_URL=https://solo.wablas.com
+    */
+    'wablas' => [
+        'token'    => env('WABLAS_TOKEN', ''),
+        'base_url' => env('WABLAS_BASE_URL', 'https://solo.wablas.com'),
+    ],
+
 ];
+

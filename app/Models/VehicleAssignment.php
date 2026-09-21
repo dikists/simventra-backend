@@ -27,6 +27,8 @@ class VehicleAssignment extends Model
         'return_time',
         'notes',
         'vehicle_condition_on_return',
+        'last_ping_at',         // Heartbeat: timestamp lokasi terakhir dari sopir
+        'heartbeat_alerted_at', // Heartbeat: timestamp alert terakhir dikirim (cooldown)
     ];
 
     protected $casts = [
@@ -36,6 +38,8 @@ class VehicleAssignment extends Model
         'end_odometer'          => 'decimal:2',
         'departure_time'        => 'datetime',
         'return_time'           => 'datetime',
+        'last_ping_at'          => 'datetime',
+        'heartbeat_alerted_at'  => 'datetime',
     ];
 
     public function getActivitylogOptions(): LogOptions
