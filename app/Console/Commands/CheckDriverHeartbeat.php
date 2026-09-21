@@ -66,13 +66,18 @@ class CheckDriverHeartbeat extends Command
                 $referenceTime = $assignment->last_ping_at;
             }
 
+            $refCarbon = Carbon::parse($referenceTime);
+            $silenceMinutes = (int) now()->diffInMinutes($refCarbon, false);
+
+            $this->line("   ℹ️ [{$plate}] {$driverName} | Ping: {$refCarbon->format('Y-m-d H:i:s')} | Now: " . now()->format('Y-m-d H:i:s') . " | Diam: {$silenceMinutes} mnt (cutoff: {$cutoffAt->format('H:i:s')})");
+
             // ── Cek 2: Apakah sudah melewati batas timeout?
             if (!Carbon::instance($referenceTime)->isBefore($cutoffAt)) {
-                // Masih dalam batas waktu normal, skip
+                $this->line("   ⏳ Skip: Ping masih dalam batas waktu normal (< {$timeoutMinutes} mnt).");
                 continue;
             }
 
-            $silenceMinutes = max(0, (int) abs(now()->diffInMinutes($referenceTime)));
+            $silenceMinutes = max(0, (int) abs($silenceMinutes));
 
             // ── Cek 3: Cooldown – jangan spam alert
             if (!is_null($assignment->heartbeat_alerted_at)) {

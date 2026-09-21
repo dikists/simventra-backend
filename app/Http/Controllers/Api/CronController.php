@@ -89,6 +89,9 @@ class CronController extends Controller
                 'status'    => 'success',
                 'command'   => 'simventra:check-driver-heartbeat',
                 'output'    => trim($output),
+                'now'       => now()->toDateTimeString(),
+                'app_tz'    => config('app.timezone'),
+                'php_tz'    => date_default_timezone_get(),
                 'timestamp' => now()->timezone('Asia/Jakarta')->toDateTimeString(),
             ]);
         } catch (\Throwable $e) {
