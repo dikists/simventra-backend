@@ -85,6 +85,10 @@ class CronController extends Controller
                 'output' => trim($output),
             ]);
 
+            $latestAlert = \App\Models\HeartbeatAlert::latest()->first();
+            $wablasTokenConfigured = !empty(config('services.wablas.token'));
+            $wablasUrl = config('services.wablas.base_url');
+
             return response()->json([
                 'status'    => 'success',
                 'command'   => 'simventra:check-driver-heartbeat',
@@ -92,6 +96,18 @@ class CronController extends Controller
                 'now'       => now()->toDateTimeString(),
                 'app_tz'    => config('app.timezone'),
                 'php_tz'    => date_default_timezone_get(),
+                'wablas'    => [
+                    'token_configured' => $wablasTokenConfigured,
+                    'base_url'         => $wablasUrl,
+                ],
+                'latest_alert' => $latestAlert ? [
+                    'id'              => $latestAlert->id,
+                    'created_at'      => $latestAlert->created_at?->toDateTimeString(),
+                    'wa_sent'         => (bool) $latestAlert->wa_sent,
+                    'push_driver'     => (bool) $latestAlert->push_sent_driver,
+                    'push_dispatcher' => (bool) $latestAlert->push_sent_dispatcher,
+                    'error_notes'     => $latestAlert->error_notes,
+                ] : null,
                 'timestamp' => now()->timezone('Asia/Jakarta')->toDateTimeString(),
             ]);
         } catch (\Throwable $e) {
@@ -104,6 +120,42 @@ class CronController extends Controller
                 'timestamp' => now()->timezone('Asia/Jakarta')->toDateTimeString(),
             ], 500);
         }
+    }
+
+    /**
+     * Tes pengiriman WhatsApp via Wablas
+     */
+    public function testWa(Request $request): JsonResponse
+    {
+        if (!$this->validateSecret($request)) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $phone = $request->query('phone');
+        if (!$phone) {
+            $driver = \App\Models\Employee::whereHas('assignments', function($q) {
+                $q->where('status', 'on_trip');
+            })->first() ?? \App\Models\Employee::whereNotNull('phone')->first();
+            $phone = $driver?->phone;
+        }
+
+        if (!$phone) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Nomor HP tidak ditemukan di database. Sertakan ?phone=08xxx',
+            ]);
+        }
+
+        $msg = "🔔 *SIMVENTRA TEST*: Ini adalah pesan tes koneksi WhatsApp Gateway Wablas pada " . now()->format('d/m/Y H:i:s') . " WIB.";
+        $sent = \App\Services\WhatsAppService::send($phone, $msg);
+
+        return response()->json([
+            'status'         => $sent ? 'success' : 'failed',
+            'phone'          => $phone,
+            'wablas_token'   => !empty(config('services.wablas.token')) ? 'Configured (' . substr(config('services.wablas.token'), 0, 6) . '...)' : 'EMPTY / NOT SET',
+            'wablas_url'     => config('services.wablas.base_url'),
+            'timestamp'      => now()->toDateTimeString(),
+        ]);
     }
 
     /**

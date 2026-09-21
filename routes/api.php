@@ -30,4 +30,5 @@ Route::prefix('cron')->group(function () {
     Route::match(['get', 'post'], '/schedule', [\App\Http\Controllers\Api\CronController::class, 'schedule']);
     Route::match(['get', 'post'], '/heartbeat', [\App\Http\Controllers\Api\CronController::class, 'heartbeat']);
     Route::match(['get', 'post'], '/queue', [\App\Http\Controllers\Api\CronController::class, 'queueWork']);
+    Route::match(['get', 'post'], '/test-wa', [\App\Http\Controllers\Api\CronController::class, 'testWa']);
 });
