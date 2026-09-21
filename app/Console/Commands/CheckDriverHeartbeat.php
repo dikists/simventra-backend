@@ -92,8 +92,9 @@ class CheckDriverHeartbeat extends Command
 
             $this->warn("   🚨 Alert! [{$plate}] {$driverName} → {$destination} | Diam: {$silenceMinutes} mnt");
 
-            SendHeartbeatAlertJob::dispatch($assignment, $silenceMinutes)
-                ->onQueue('notifications');
+            // Gunakan dispatchSync() agar langsung dieksekusi saat schedule:run berjalan
+            // tanpa perlu queue worker terpisah (lebih andal di shared hosting)
+            SendHeartbeatAlertJob::dispatchSync($assignment, $silenceMinutes);
 
             $alertCount++;
         }
