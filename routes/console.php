@@ -25,9 +25,7 @@ Schedule::command('simventra:recall-assignments')
 
 // SIMVENTRA – Heartbeat Checker (Driver GPS Monitor)
 // Deteksi sopir yang menutup aplikasi saat perjalanan setiap 2 menit.
-// Jika tidak ada sinyal GPS selama HEARTBEAT_TIMEOUT_MINUTES, kirim alert
-// via Push Notification + WhatsApp ke sopir dan Dispatcher.
+// Catatan: runInBackground() dihapus karena proc_open() dinonaktifkan di shared hosting.
 Schedule::command('simventra:check-driver-heartbeat')
     ->everyTwoMinutes()
-    ->withoutOverlapping()
-    ->runInBackground();
+    ->withoutOverlapping();
