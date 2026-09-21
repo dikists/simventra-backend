@@ -72,7 +72,7 @@ class CheckDriverHeartbeat extends Command
                 continue;
             }
 
-            $silenceMinutes = (int) now()->diffInMinutes($referenceTime);
+            $silenceMinutes = max(0, (int) abs(now()->diffInMinutes($referenceTime)));
 
             // ── Cek 3: Cooldown – jangan spam alert
             if (!is_null($assignment->heartbeat_alerted_at)) {
