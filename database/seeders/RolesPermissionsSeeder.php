@@ -56,6 +56,25 @@ class RolesPermissionsSeeder extends Seeder
             // Reports
             'view reports',
             'export reports',
+
+            // Maintenance Kendaraan
+            'view maintenance',
+            'manage maintenance',
+
+            // Log Insiden & Keamanan
+            'view incidents',
+            'manage incidents',
+
+            // Komplain Pelanggan
+            'view complaints',
+            'manage complaints',
+
+            // Tinjauan Manajemen (QMS)
+            'view reviews',
+            'manage reviews',
+
+            // Audit Mode & Kepatuhan
+            'view audit mode',
         ];
 
         foreach ($permissions as $permission) {
@@ -70,7 +89,7 @@ class RolesPermissionsSeeder extends Seeder
         $superAdmin = Role::firstOrCreate(['name' => 'Super Admin']);
         $superAdmin->syncPermissions(Permission::all());
 
-        // Manajemen / QMS Reviewer – read-only dashboard + laporan
+        // Manajemen / QMS Reviewer – read-only dashboard + laporan + audit & komplain
         $manajemen = Role::firstOrCreate(['name' => 'Manajemen']);
         $manajemen->syncPermissions([
             'view dashboard',
@@ -81,6 +100,13 @@ class RolesPermissionsSeeder extends Seeder
             'view reminders',
             'view reports',
             'export reports',
+            'view maintenance',
+            'view incidents',
+            'view complaints',
+            'manage complaints',
+            'view reviews',
+            'manage reviews',
+            'view audit mode',
         ]);
 
         // HR/Personalia – kelola karyawan
@@ -97,7 +123,7 @@ class RolesPermissionsSeeder extends Seeder
             'view reports',
         ]);
 
-        // Fleet / Control Tower Officer – kelola kendaraan & sopir
+        // Fleet / Control Tower Officer – kelola kendaraan, maintenance & insiden
         $fleet = Role::firstOrCreate(['name' => 'Fleet Officer']);
         $fleet->syncPermissions([
             'view dashboard',
@@ -109,6 +135,9 @@ class RolesPermissionsSeeder extends Seeder
             'upload vehicle documents',
             'view reminders',
             'view reports',
+            'view maintenance',
+            'view incidents',
+            'manage incidents',
         ]);
 
         // Maintenance Officer – kelola perawatan kendaraan
@@ -120,14 +149,18 @@ class RolesPermissionsSeeder extends Seeder
             'view vehicle documents',
             'upload vehicle documents',
             'view reminders',
+            'view maintenance',
+            'manage maintenance',
         ]);
 
-        // Security Officer – keamanan
+        // Security Officer – keamanan & insiden
         $security = Role::firstOrCreate(['name' => 'Security Officer']);
         $security->syncPermissions([
             'view dashboard',
             'view employees',
             'view vehicles',
+            'view incidents',
+            'manage incidents',
         ]);
 
         // Sopir – akses terbatas
@@ -147,6 +180,11 @@ class RolesPermissionsSeeder extends Seeder
             'view reminders',
             'view reports',
             'view activity logs',
+            'view maintenance',
+            'view incidents',
+            'view complaints',
+            'view reviews',
+            'view audit mode',
         ]);
 
         $this->command->info('✅ Roles & Permissions seeded successfully!');

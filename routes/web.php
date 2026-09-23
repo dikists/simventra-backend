@@ -16,6 +16,8 @@ use App\Livewire\ActivityLogs\ActivityLogIndex;
 use App\Livewire\Monitoring\LiveTrackingMap;
 use App\Livewire\Settings\WarehouseSettings;
 use App\Livewire\Settings\CompanySettings;
+use App\Livewire\Maintenance\MaintenanceIndex;
+use App\Livewire\Incidents\IncidentIndex;
 use Illuminate\Support\Facades\Route;
 
 // Redirect root to dashboard
@@ -61,6 +63,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/kendaraan', VehicleIndex::class)->name('vehicles.index');
         Route::get('/kendaraan/{vehicle}', VehicleDetail::class)->whereNumber('vehicle')->name('vehicles.show');
         Route::get('/monitoring-armada', LiveTrackingMap::class)->name('tracking.index');
+    });
+
+    // ===== OPERASIONAL & AUDIT =====
+    Route::middleware('can:view maintenance')->group(function () {
+        Route::get('/perawatan-armada', MaintenanceIndex::class)->name('maintenance.index');
+    });
+    Route::middleware('can:view incidents')->group(function () {
+        Route::get('/insiden', IncidentIndex::class)->name('incidents.index');
     });
 
     // ===== DOKUMEN =====

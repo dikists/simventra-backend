@@ -15,7 +15,7 @@ class CronController extends Controller
      */
     private function validateSecret(Request $request): bool
     {
-        $expectedKey = env('CRON_SECRET', 'simventra_cron_rahasia_2026');
+        $expectedKey = config('simventra.cron.secret');
         $providedKey = $request->query('key') ?? $request->header('X-Cron-Key');
 
         return !empty($providedKey) && hash_equals($expectedKey, (string) $providedKey);

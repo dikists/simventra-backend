@@ -14,7 +14,7 @@ Schedule::command('simventra:check-document-expiry')
     ->dailyAt('07:00')
     ->timezone('Asia/Jakarta')
     ->withoutOverlapping()
-    ->emailOutputOnFailure(env('ADMIN_EMAIL', 'admin@simventra.id'));
+    ->emailOutputOnFailure(config('simventra.notifications.admin_email'));
 
 // SIMVENTRA – Auto-Recall Penugasan Armada
 // Deringkan ulang HP sopir setiap menit jika ada tugas yang belum dikonfirmasi > 2 menit
@@ -27,4 +27,11 @@ Schedule::command('simventra:recall-assignments')
 // Catatan: runInBackground() dihapus karena proc_open() dinonaktifkan di shared hosting.
 Schedule::command('simventra:check-driver-heartbeat')
     ->everyTwoMinutes()
+    ->withoutOverlapping();
+
+// SIMVENTRA – Prune GPS Locations
+// Bersihkan data lokasi GPS lama setiap hari pukul 02:00 WIB
+Schedule::command('simventra:prune-locations')
+    ->dailyAt('02:00')
+    ->timezone('Asia/Jakarta')
     ->withoutOverlapping();

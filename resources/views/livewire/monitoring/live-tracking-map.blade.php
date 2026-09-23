@@ -98,6 +98,36 @@
                         <span style="font-weight:600;color:#334155;">Rencana Rute</span>
                     </div>
                 </div>
+
+                <!-- Floating Driver Location Detail Panel (hidden by default) -->
+                <div id="driver-location-panel" style="display:none;position:absolute;top:16px;right:16px;z-index:999;background:rgba(255,255,255,0.97);backdrop-filter:blur(8px);padding:14px 16px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.13);border:1px solid #e2e8f0;min-width:260px;max-width:300px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <div style="font-size:12px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:0.5px;">📍 Lokasi Sopir</div>
+                        <button onclick="closeLocationPanel()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;line-height:1;padding:0;">&times;</button>
+                    </div>
+                    <div style="margin-bottom:8px;">
+                        <span id="panel-plate" style="font-weight:800;font-family:monospace;font-size:14px;color:#1e293b;background:#f1f5f9;padding:2px 8px;border-radius:4px;"></span>
+                        <span id="panel-driver" style="font-size:12px;color:#64748b;margin-left:8px;"></span>
+                    </div>
+                    <!-- Lokasi Sekarang -->
+                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+                        <div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:4px;">LOKASI SEKARANG</div>
+                        <div id="panel-location-now" style="font-size:12.5px;color:#1e293b;font-weight:600;line-height:1.4;">
+                            <span style="color:#94a3b8;font-style:italic;">Memuat lokasi...</span>
+                        </div>
+                        <div id="panel-coords" style="font-size:10.5px;color:#64748b;margin-top:4px;font-family:monospace;"></div>
+                    </div>
+                    <!-- Terakhir Update -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#64748b;">
+                        <div>⚡ <span id="panel-speed"></span></div>
+                        <div>🕐 <span id="panel-updated"></span></div>
+                    </div>
+                    <!-- Tujuan -->
+                    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9;">
+                        <div style="font-size:11px;color:#94a3b8;margin-bottom:2px;">Tujuan:</div>
+                        <div id="panel-destination" style="font-size:12px;color:#0ea5e9;font-weight:600;"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -136,6 +166,9 @@
             border-radius: 10px;
             box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
         }
+        #driver-location-panel {
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
     </style>
 
 @script
@@ -146,6 +179,8 @@
     let routePolylines = {};
     let trailPolylines = {};
     let fleetDataMap = {};
+    // Cache reverse geocode results to avoid repeated requests for same coordinates
+    const geocodeCache = {};
     const WAREHOUSE_COORDS = [{{ (float) $warehouse->latitude }}, {{ (float) $warehouse->longitude }}];
 
     window.initMap = function() {
@@ -192,6 +227,39 @@
         }
     };
 
+    /**
+     * Reverse geocode lat/lng to a human-readable address using Nominatim.
+     * Results are cached per rounded coordinate pair (4 decimal places ≈ 11m precision).
+     */
+    async function reverseGeocode(lat, lng) {
+        const key = `${parseFloat(lat).toFixed(4)},${parseFloat(lng).toFixed(4)}`;
+        if (geocodeCache[key]) return geocodeCache[key];
+
+        try {
+            const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=id`;
+            const res = await fetch(url, { headers: { 'Accept-Language': 'id' } });
+            const data = await res.json();
+
+            if (data && data.address) {
+                const a = data.address;
+                // Build a short, readable description (street + suburb/village/city)
+                const parts = [
+                    a.road || a.pedestrian || a.footway,
+                    a.suburb || a.village || a.town || a.city_district,
+                    a.city || a.county || a.state,
+                ].filter(Boolean);
+                const label = parts.length > 0 ? parts.join(', ') : (data.display_name || 'Tidak diketahui');
+                geocodeCache[key] = { label, full: data.display_name || label };
+                return geocodeCache[key];
+            }
+        } catch (e) {
+            // Silently fail; caller will show fallback
+        }
+        const fallback = { label: `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}`, full: null };
+        geocodeCache[key] = fallback;
+        return fallback;
+    }
+
     function updateFleetUI(fleets) {
         const countEl = document.getElementById('fleet-count');
         const pingEl = document.getElementById('last-ping-time');
@@ -234,8 +302,9 @@
                 iconAnchor: [12, 12]
             });
 
+            const popupId = `popup-loc-${fleet.assignment_id}`;
             const popupHtml = `
-                <div style="min-width:210px;font-family:'Plus Jakarta Sans',sans-serif;">
+                <div style="min-width:230px;font-family:'Plus Jakarta Sans',sans-serif;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
                         <span style="background:#1e293b;color:#fff;padding:2px 8px;border-radius:4px;font-weight:700;font-size:12px;letter-spacing:1px;font-family:monospace;">
                             ${fleet.license_plate}
@@ -244,8 +313,15 @@
                     </div>
                     <div style="font-size:13px;font-weight:700;color:#1e293b;">${fleet.brand_model}</div>
                     <div style="font-size:12px;color:#64748b;margin-bottom:6px;">Sopir: <strong>${fleet.driver_name}</strong></div>
+                    <div style="padding:6px 8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;font-size:11.5px;margin-bottom:6px;">
+                        <div style="font-weight:700;color:#1d4ed8;font-size:10.5px;margin-bottom:3px;">📍 LOKASI SEKARANG</div>
+                        <div id="${popupId}" style="color:#1e293b;font-weight:600;line-height:1.4;">
+                            <span style="color:#94a3b8;font-style:italic;">Memuat...</span>
+                        </div>
+                        <div style="font-size:10px;color:#94a3b8;margin-top:2px;font-family:monospace;">${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}</div>
+                    </div>
                     <div style="padding:6px 8px;background:#f1f5f9;border-radius:6px;font-size:11.5px;margin-bottom:6px;">
-                        <div>📍 <strong>Tujuan:</strong> ${fleet.destination}</div>
+                        <div>🏁 <strong>Tujuan:</strong> ${fleet.destination}</div>
                         <div style="margin-top:2px;">⚡ <strong>Kecepatan:</strong> ${fleet.speed_kmh} KM/Jam</div>
                         <div style="font-size:10.5px;color:#94a3b8;margin-top:2px;">Update: ${fleet.last_updated}</div>
                     </div>
@@ -261,6 +337,7 @@
             } else if (map) {
                 const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
                 marker.bindPopup(popupHtml);
+                marker.on('popupopen', () => fillGeocodedLocation(popupId, lat, lng));
                 markers[fleet.assignment_id] = marker;
             }
 
@@ -327,6 +404,8 @@
                 ? `<span style="font-size:10.5px;font-weight:800;color:#dc2626;background:#fee2e2;padding:2px 6px;border-radius:4px;border:1px solid #fca5a5;">🚨 Sinyal Putus (${fleet.silence_minutes}m)</span>`
                 : `<span style="font-size:11px;font-weight:700;color:${fleet.speed_kmh > 0 ? '#10b981' : '#f59e0b'};">${fleet.speed_kmh} km/h</span>`;
 
+            const cardLocId = `card-loc-${fleet.assignment_id}`;
+
             listHtml += `
                 <div onclick="focusVehicle(${lat}, ${lng}, ${fleet.assignment_id})" style="padding:12px;${cardBg}border-radius:8px;cursor:pointer;transition:all 0.15s ease;" onmouseover="this.style.filter='brightness(0.96)'" onmouseout="this.style.filter='none'">
                     <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -337,17 +416,38 @@
                     <div style="font-size:11.5px;color:#64748b;margin-top:4px;">
                         Sopir: <strong>${fleet.driver_name}</strong>
                     </div>
-                    <div style="font-size:11px;color:#0ea5e9;margin-top:2px;display:flex;align-items:center;gap:4px;">
-                        <span>📍</span>
+                    <div style="margin-top:5px;padding:5px 8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;font-size:11px;color:#1d4ed8;">
+                        <span style="font-weight:700;">📍 Lokasi:</span>
+                        <span id="${cardLocId}" style="color:#1e293b;font-weight:600;">
+                            <span style="color:#94a3b8;font-style:italic;">Memuat...</span>
+                        </span>
+                    </div>
+                    <div style="font-size:11px;color:#0ea5e9;margin-top:4px;display:flex;align-items:center;gap:4px;">
+                        <span>🏁</span>
                         <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fleet.destination}</span>
                     </div>
                     ${isSilent ? `<div style="font-size:10.5px;color:#dc2626;font-weight:700;margin-top:4px;">⚠️ Terakhir Update: ${fleet.last_updated}</div>` : ''}
                     ${fleet.destination_latitude ? '<div style="font-size:10px;color:#10b981;font-weight:700;margin-top:2px;">🏁 Ada titik koordinat tujuan</div>' : ''}
                 </div>
             `;
+
+            fillGeocodedLocation(cardLocId, lat, lng);
         });
 
         container.innerHTML = listHtml;
+
+        fleets.forEach(fleet => {
+            fillGeocodedLocation(`card-loc-${fleet.assignment_id}`, fleet.latitude, fleet.longitude);
+        });
+    }
+
+    async function fillGeocodedLocation(elementId, lat, lng) {
+        const geo = await reverseGeocode(lat, lng);
+        const el = document.getElementById(elementId);
+        if (el) {
+            el.innerHTML = geo.label;
+            el.title = geo.full || geo.label;
+        }
     }
 
     window.focusVehicle = function(lat, lng, assignmentId) {
@@ -366,6 +466,32 @@
         if (markers[assignmentId]) {
             markers[assignmentId].openPopup();
         }
+
+        showLocationPanel(fleet, lat, lng);
+    };
+
+    async function showLocationPanel(fleet, lat, lng) {
+        const panel = document.getElementById('driver-location-panel');
+        if (!panel || !fleet) return;
+
+        document.getElementById('panel-plate').textContent    = fleet.license_plate;
+        document.getElementById('panel-driver').textContent   = fleet.driver_name;
+        document.getElementById('panel-speed').textContent    = `${fleet.speed_kmh} km/jam`;
+        document.getElementById('panel-updated').textContent  = fleet.last_updated;
+        document.getElementById('panel-destination').textContent = fleet.destination;
+        document.getElementById('panel-coords').textContent   = `${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}`;
+        document.getElementById('panel-location-now').innerHTML = '<span style="color:#94a3b8;font-style:italic;">Memuat lokasi...</span>';
+
+        panel.style.display = 'block';
+
+        const geo = await reverseGeocode(lat, lng);
+        const locEl = document.getElementById('panel-location-now');
+        if (locEl) locEl.innerHTML = geo.label;
+    }
+
+    window.closeLocationPanel = function() {
+        const panel = document.getElementById('driver-location-panel');
+        if (panel) panel.style.display = 'none';
     };
 
     // Inisialisasi saat Leaflet sudah dimuat

@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\DriverLocation;
 use App\Models\Employee;
+use App\Models\Incident;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleAssignment;
+use App\Services\DriverMatchingService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -56,8 +59,8 @@ class DriverApiController extends Controller
             ], 403);
         }
 
-        // Find associated employee/driver profile using smart matcher
-        $driver = self::findDriverForUser($user);
+        // Find associated employee/driver profile using centralized service
+        $driver = DriverMatchingService::findDriverForUser($user);
 
         $token = $user->createToken('driver-app')->plainTextToken;
 
@@ -112,118 +115,12 @@ class DriverApiController extends Controller
     }
 
     /**
-     * Helper to resolve Employee (driver) record for a User account,
-     * and automatically bind user_id if not yet linked.
-     */
-    public static function findDriverForUser(User $user): ?Employee
-    {
-        // 1. Direct link by user_id
-        $driver = Employee::where('user_id', $user->id)->first();
-        if ($driver) return $driver;
-
-        // 2. Match by email
-        if (!empty($user->email)) {
-            $driver = Employee::where('email', $user->email)->first();
-            if ($driver) {
-                $driver->update(['user_id' => $user->id]);
-                return $driver;
-            }
-        }
-
-        // 3. Match by phone (exact or last 7-8 digits)
-        if (!empty($user->phone)) {
-            $driver = Employee::where('phone', $user->phone)->first();
-            if ($driver) {
-                $driver->update(['user_id' => $user->id]);
-                return $driver;
-            }
-
-            $digits = preg_replace('/\D/', '', $user->phone);
-            if (strlen($digits) >= 7) {
-                $suffix = substr($digits, -7);
-                $driver = Employee::where('phone', 'LIKE', '%' . $suffix)->first();
-                if ($driver) {
-                    $driver->update(['user_id' => $user->id]);
-                    return $driver;
-                }
-            }
-        }
-
-        // 4. Match by name (case-insensitive, exact or substring)
-        if (!empty($user->name)) {
-            $cleanName = trim($user->name);
-
-            // 4a. Exact name
-            $driver = Employee::whereRaw('LOWER(name) = ?', [strtolower($cleanName)])->first();
-            if ($driver) {
-                $driver->update(['user_id' => $user->id]);
-                return $driver;
-            }
-
-            // 4b. User name contained in employee name (e.g., 'Agus' in 'Agus Dwiyantoro')
-            $driver = Employee::where(function ($q) {
-                    $q->where('type', 'sopir')->orWhereNotNull('sim_number');
-                })
-                ->where('name', 'LIKE', '%' . $cleanName . '%')
-                ->first();
-
-            if ($driver) {
-                $driver->update(['user_id' => $user->id]);
-                return $driver;
-            }
-
-            // 4c. First name match
-            $parts = explode(' ', $cleanName);
-            $firstWord = $parts[0] ?? '';
-            if (strlen($firstWord) >= 3) {
-                $driver = Employee::where(function ($q) {
-                        $q->where('type', 'sopir')->orWhereNotNull('sim_number');
-                    })
-                    ->where('name', 'LIKE', '%' . $firstWord . '%')
-                    ->first();
-
-                if ($driver) {
-                    $driver->update(['user_id' => $user->id]);
-                    return $driver;
-                }
-            }
-        }
-
-        // 5. Match by email prefix (e.g. agus@gmail.com -> 'agus')
-        if (!empty($user->email)) {
-            $prefix = explode('@', $user->email)[0];
-            $cleanPrefix = preg_replace('/[^a-zA-Z]/', '', $prefix);
-            if (strlen($cleanPrefix) >= 3) {
-                $driver = Employee::where(function ($q) {
-                        $q->where('type', 'sopir')->orWhereNotNull('sim_number');
-                    })
-                    ->where('name', 'LIKE', '%' . $cleanPrefix . '%')
-                    ->first();
-
-                if ($driver) {
-                    $driver->update(['user_id' => $user->id]);
-                    return $driver;
-                }
-            }
-        }
-
-        // 6. Fallback: Any unlinked active driver
-        $unlinkedDriver = Employee::where('type', 'sopir')->whereNull('user_id')->first();
-        if ($unlinkedDriver) {
-            $unlinkedDriver->update(['user_id' => $user->id]);
-            return $unlinkedDriver;
-        }
-
-        return null;
-    }
-
-    /**
      * Get Current Active Assignment / Task for logged-in Driver
      */
     public function getTask(Request $request): JsonResponse
     {
         $user = $request->user();
-        $driver = self::findDriverForUser($user);
+        $driver = DriverMatchingService::findDriverForUser($user);
 
         if (!$driver) {
             return response()->json([
@@ -355,7 +252,7 @@ class DriverApiController extends Controller
     }
 
     /**
-     * Driver app periodically sends GPS coordinates
+     * Driver app periodically sends GPS coordinates (single point)
      */
     public function sendLocation(Request $request, int $id): JsonResponse
     {
@@ -388,7 +285,6 @@ class DriverApiController extends Controller
         ]);
 
         // ── Heartbeat: perbarui timestamp lokasi terakhir di assignment
-        // Ini digunakan oleh CheckDriverHeartbeat untuk mendeteksi sopir yang diam
         $assignment->update(['last_ping_at' => now()]);
 
         return response()->json([
@@ -396,6 +292,65 @@ class DriverApiController extends Controller
             'recorded_at' => $location->recorded_at->toIso8601String(),
         ]);
 
+    }
+
+    /**
+     * Batch GPS location upload — menerima array koordinat sekaligus.
+     * Mengurangi jumlah HTTP request dari mobile app secara signifikan.
+     */
+    public function sendLocationBatch(Request $request, int $id): JsonResponse
+    {
+        $maxPoints = config('simventra.gps.max_points_per_batch', 20);
+
+        $validator = Validator::make($request->all(), [
+            'locations'              => "required|array|min:1|max:{$maxPoints}",
+            'locations.*.latitude'   => 'required|numeric|between:-90,90',
+            'locations.*.longitude'  => 'required|numeric|between:-180,180',
+            'locations.*.speed'      => 'nullable|numeric|min:0',
+            'locations.*.heading'    => 'nullable|numeric|between:0,360',
+            'locations.*.timestamp'  => 'nullable|date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data batch lokasi tidak valid',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $assignment = VehicleAssignment::findOrFail($id);
+
+        $locations = collect($request->input('locations'));
+        $insertData = [];
+        $now = now();
+
+        foreach ($locations as $point) {
+            $insertData[] = [
+                'assignment_id' => $assignment->id,
+                'vehicle_id'    => $assignment->vehicle_id,
+                'driver_id'     => $assignment->driver_id,
+                'latitude'      => (float) $point['latitude'],
+                'longitude'     => (float) $point['longitude'],
+                'speed'         => (float) ($point['speed'] ?? 0),
+                'heading'       => (float) ($point['heading'] ?? 0),
+                'recorded_at'   => isset($point['timestamp']) ? Carbon::parse($point['timestamp']) : $now,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ];
+        }
+
+        // Bulk insert — satu query untuk semua titik
+        DriverLocation::insert($insertData);
+
+        // Update heartbeat
+        $assignment->update(['last_ping_at' => $now]);
+
+        return response()->json([
+            'success'       => true,
+            'points_saved'  => count($insertData),
+            'recorded_at'   => $now->toIso8601String(),
+        ]);
     }
 
     /**
@@ -450,22 +405,44 @@ class DriverApiController extends Controller
     }
 
     /**
-     * Live fleet tracking locations for SIMVENTRA OpenStreetMap tracking view
+     * Live fleet tracking locations for SIMVENTRA OpenStreetMap tracking view.
+     *
+     * OPTIMIZED: Menghilangkan N+1 query pada trail locations dengan eager loading.
      */
     public function getFleetLiveLocations(): JsonResponse
     {
-        $activeAssignments = VehicleAssignment::with(['vehicle', 'driver', 'latestLocation'])
+        $trailLimit = (int) config('simventra.gps.trail_points', 30);
+
+        // Eager load locations untuk semua assignment sekaligus (menghindari N+1)
+        $activeAssignments = VehicleAssignment::with([
+                'vehicle',
+                'driver',
+                'latestLocation',
+            ])
             ->where('status', 'on_trip')
             ->get();
+
+        // Batch load trail locations: ambil semua lokasi terakhir sekaligus
+        $assignmentIds = $activeAssignments->pluck('id');
+        $trailLocations = DriverLocation::whereIn('assignment_id', $assignmentIds)
+            ->orderByDesc('recorded_at')
+            ->get()
+            ->groupBy('assignment_id')
+            ->map(fn ($locs) => $locs->take($trailLimit)->reverse()->values());
 
         $timeoutMinutes = (int) config('simventra.heartbeat.timeout_minutes', 5);
         $cutoffAt = now()->subMinutes($timeoutMinutes);
 
-        $fleets = $activeAssignments->map(function (VehicleAssignment $assignment) use ($cutoffAt) {
+        $fleets = $activeAssignments->map(function (VehicleAssignment $assignment) use ($cutoffAt, $trailLocations) {
             $latest = $assignment->latestLocation;
             $refTime = $assignment->last_ping_at ?? $assignment->departure_time ?? $assignment->updated_at;
-            $isSilent = $refTime ? \Carbon\Carbon::instance($refTime)->isBefore($cutoffAt) : false;
+            $isSilent = $refTime ? Carbon::instance($refTime)->isBefore($cutoffAt) : false;
             $silenceMinutes = $refTime ? max(1, (int) abs(now()->diffInMinutes($refTime))) : 0;
+
+            // Trail dari batch pre-loaded (bukan per-assignment query)
+            $trail = ($trailLocations[$assignment->id] ?? collect())->map(function ($loc) {
+                return [(float) $loc->latitude, (float) $loc->longitude];
+            });
 
             return [
                 'assignment_id' => $assignment->id,
@@ -480,17 +457,15 @@ class DriverApiController extends Controller
                 'destination_latitude'  => $assignment->destination_latitude ? (float) $assignment->destination_latitude : null,
                 'destination_longitude' => $assignment->destination_longitude ? (float) $assignment->destination_longitude : null,
                 'departure'             => $assignment->departure_time?->format('H:i, d M'),
-                'latitude'              => $latest ? (float) $latest->latitude : -6.2088, // Default Jakarta
-                'longitude'             => $latest ? (float) $latest->longitude : 106.8456,
+                'latitude'              => $latest ? (float) $latest->latitude : config('simventra.warehouse.lat'),
+                'longitude'             => $latest ? (float) $latest->longitude : config('simventra.warehouse.lng'),
                 'speed_kmh'             => $latest ? (float) $latest->speed : 0,
                 'heading'               => $latest ? (float) $latest->heading : 0,
                 'last_updated'          => $latest ? $latest->recorded_at->diffForHumans() : 'Belum ada sinyal GPS',
                 'has_gps'               => (bool) $latest,
                 'is_silent'             => $isSilent,
                 'silence_minutes'       => $silenceMinutes,
-                'trail'                 => $assignment->locations()->latest('recorded_at')->take(30)->get()->reverse()->values()->map(function($loc) {
-                    return [(float) $loc->latitude, (float) $loc->longitude];
-                }),
+                'trail'                 => $trail,
             ];
         });
 
@@ -499,5 +474,118 @@ class DriverApiController extends Controller
             'count'   => $fleets->count(),
             'fleets'  => $fleets,
         ]);
+    }
+
+    /**
+     * Riwayat penugasan yang sudah selesai untuk sopir
+     */
+    public function getTripHistory(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $driver = DriverMatchingService::findDriverForUser($user);
+
+        if (!$driver) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Profil sopir tidak ditemukan.',
+            ], 404);
+        }
+
+        $limit = min((int) $request->input('limit', 10), 50);
+
+        $history = VehicleAssignment::with(['vehicle', 'assignedBy'])
+            ->where('driver_id', $driver->id)
+            ->where('status', 'completed')
+            ->latest('return_time')
+            ->limit($limit)
+            ->get()
+            ->map(function (VehicleAssignment $a) {
+                return [
+                    'id'              => $a->id,
+                    'vehicle'         => strtoupper($a->vehicle?->license_plate ?? '-'),
+                    'brand_model'     => ($a->vehicle?->brand ?? '') . ' ' . ($a->vehicle?->model ?? ''),
+                    'origin'          => $a->origin,
+                    'destination'     => $a->destination,
+                    'departure_time'  => $a->departure_time?->format('d M Y, H:i'),
+                    'return_time'     => $a->return_time?->format('d M Y, H:i'),
+                    'distance_km'     => $a->distance_traveled,
+                    'condition'       => $a->vehicle_condition_on_return,
+                    'assigned_by'     => $a->assignedBy?->name,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'count'   => $history->count(),
+            'trips'   => $history,
+        ]);
+    }
+
+    /**
+     * Sopir melaporkan insiden / panic alert dari aplikasi mobile
+     */
+    public function reportIncident(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'title'       => 'required|string|max:255',
+            'type'        => 'required|in:keamanan,kontaminasi,kecelakaan,pelanggaran,lainnya',
+            'severity'    => 'required|in:low,medium,high,critical',
+            'description' => 'required|string',
+            'location'    => 'nullable|string',
+            'latitude'    => 'nullable|numeric',
+            'longitude'   => 'nullable|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $user = $request->user();
+        $driver = DriverMatchingService::findDriverForUser($user);
+
+        // Cari penugasan aktif jika ada
+        $activeTask = null;
+        if ($driver) {
+            $activeTask = VehicleAssignment::where('driver_id', $driver->id)
+                ->whereIn('status', ['assigned', 'confirmed', 'on_trip'])
+                ->latest()
+                ->first();
+        }
+
+        $photoPath = null;
+        if ($request->hasFile('photo')) {
+            $photoPath = $request->file('photo')->store('incidents', config('filesystems.default_public_disk', 'public'));
+        }
+
+        $incidentNumber = Incident::generateIncidentNumber();
+
+        $incident = Incident::create([
+            'incident_number' => $incidentNumber,
+            'type'            => $request->input('type'),
+            'severity'        => $request->input('severity'),
+            'title'           => $request->input('title'),
+            'description'     => $request->input('description'),
+            'occurred_at'     => now(),
+            'location'        => $request->input('location'),
+            'latitude'        => $request->input('latitude'),
+            'longitude'       => $request->input('longitude'),
+            'vehicle_id'      => $activeTask?->vehicle_id,
+            'driver_id'       => $driver?->id,
+            'reported_by'     => $user->id,
+            'assignment_id'   => $activeTask?->id,
+            'status'          => 'open',
+            'photo'           => $photoPath,
+        ]);
+
+        return response()->json([
+            'success'         => true,
+            'message'         => 'Laporan insiden berhasil dikirim ke Control Tower.',
+            'incident_number' => $incidentNumber,
+            'incident'        => $incident,
+        ], 201);
     }
 }

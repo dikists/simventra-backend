@@ -100,7 +100,7 @@ class SendHeartbeatAlertJob implements ShouldQueue
         // 3. Notifikasi (Push + WhatsApp) → Semua Dispatcher / Fleet Officer
         // ─────────────────────────────────────────────────────────────────
         $dispatchers = User::whereHas('roles', function ($q) {
-            $q->whereIn('name', ['Super Admin', 'Fleet Officer', 'Control Tower Officer']);
+            $q->whereIn('name', config('simventra.notifications.dispatcher_roles'));
         })->where('is_active', true)->get();
 
         $dispatcherCount = 0;
@@ -131,7 +131,7 @@ class SendHeartbeatAlertJob implements ShouldQueue
         }
 
         // 3c. WhatsApp juga ke CONTROL_TOWER_PHONE atau ADMIN_PHONE di .env jika disetel
-        $adminPhone = env('CONTROL_TOWER_PHONE', env('ADMIN_PHONE'));
+        $adminPhone = config('simventra.notifications.admin_phone');
         if (!empty($adminPhone)) {
             WhatsAppService::send($adminPhone, $dispatcherWaMessage);
         }

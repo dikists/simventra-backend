@@ -16,13 +16,21 @@ Route::post('/driver/login', [DriverApiController::class, 'login']);
 Route::get('/fleet/live-locations', [DriverApiController::class, 'getFleetLiveLocations']);
 
 // Protected: Driver App Operations (via Sanctum Bearer Token)
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
     Route::post('/driver/push-token', [DriverApiController::class, 'storePushToken']);
     Route::get('/driver/task', [DriverApiController::class, 'getTask']);
+    Route::get('/driver/trip-history', [DriverApiController::class, 'getTripHistory']);
     Route::post('/driver/task/{id}/confirm', [DriverApiController::class, 'confirmTask']);
     Route::post('/driver/task/{id}/start', [DriverApiController::class, 'startTrip']);
-    Route::post('/driver/task/{id}/location', [DriverApiController::class, 'sendLocation']);
+
+    // GPS Location: rate limit lebih tinggi karena frekuensi tinggi
+    Route::middleware('throttle:120,1')->group(function () {
+        Route::post('/driver/task/{id}/location', [DriverApiController::class, 'sendLocation']);
+        Route::post('/driver/task/{id}/location-batch', [DriverApiController::class, 'sendLocationBatch']);
+    });
+
     Route::post('/driver/task/{id}/complete', [DriverApiController::class, 'completeTrip']);
+    Route::post('/driver/incident', [DriverApiController::class, 'reportIncident']);
 });
 
 // Cron Webhook Endpoints (Protected by CRON_SECRET for Shared Hosting)

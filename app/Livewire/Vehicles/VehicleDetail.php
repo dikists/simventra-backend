@@ -92,24 +92,8 @@ class VehicleDetail extends Component
             'notes'                 => $this->dispatchNotes,
         ]);
 
-        // 2. Auto-link driver to User account if not yet linked
-        $driverUser = $driver->user ?? User::find($driver->user_id);
-        if (!$driverUser && !empty($driver->email)) {
-            $driverUser = User::where('email', $driver->email)->first();
-        }
-        if (!$driverUser && !empty($driver->phone)) {
-            $driverUser = User::where('phone', $driver->phone)->first();
-        }
-        if (!$driverUser && !empty($driver->name)) {
-            $driverUser = User::whereRaw('LOWER(name) = ?', [strtolower(trim($driver->name))])->first();
-            if (!$driverUser) {
-                $driverUser = User::where('name', 'LIKE', '%' . trim($driver->name) . '%')->first();
-            }
-        }
-
-        if ($driverUser && !$driver->user_id) {
-            $driver->update(['user_id' => $driverUser->id]);
-        }
+        // 2. Auto-link driver to User account using centralized service
+        $driverUser = \App\Services\DriverMatchingService::findUserForDriver($driver);
 
         // 3. Send Push Notification to Driver's smartphone if push_token is registered
         if ($driverUser && !empty($driverUser->push_token)) {
@@ -166,23 +150,7 @@ class VehicleDetail extends Component
         }
 
         $driver = $assignment->driver;
-        $driverUser = $driver?->user;
-
-        if (!$driverUser && $driver) {
-            // Fallback cari akun user jika belum terhubung
-            $driverUser = User::where('email', $driver->email)
-                ->orWhere('phone', $driver->phone)
-                ->first();
-
-            if (!$driverUser && !empty($driver->phone)) {
-                $suffix = substr(preg_replace('/\D/', '', $driver->phone), -7);
-                $driverUser = User::where('phone', 'LIKE', '%' . $suffix)->first();
-            }
-
-            if ($driverUser) {
-                $driver->update(['user_id' => $driverUser->id]);
-            }
-        }
+        $driverUser = $driver ? \App\Services\DriverMatchingService::findUserForDriver($driver) : null;
 
         if ($driverUser && !empty($driverUser->push_token)) {
             $sent = PushNotificationService::sendToUser(
