@@ -75,7 +75,24 @@ class Incident extends Model
     public static function generateIncidentNumber(): string
     {
         $year = now()->format('Y');
-        $count = static::whereYear('created_at', $year)->count() + 1;
-        return sprintf('INC-%s-%04d', $year, $count);
+        $prefix = "INC-{$year}-";
+
+        // Ambil nomor urut tertinggi tahun ini termasuk yang di-soft-delete
+        $latest = static::withTrashed()
+            ->where('incident_number', 'like', "{$prefix}%")
+            ->orderByDesc('id')
+            ->value('incident_number');
+
+        $nextNumber = 1;
+        if ($latest && preg_match('/INC-\d{4}-(\d+)/', $latest, $matches)) {
+            $nextNumber = (int)$matches[1] + 1;
+        }
+
+        // Pastikan nomor benar-benar unik dan belum pernah dipakai di database
+        while (static::withTrashed()->where('incident_number', sprintf('INC-%s-%04d', $year, $nextNumber))->exists()) {
+            $nextNumber++;
+        }
+
+        return sprintf('INC-%s-%04d', $year, $nextNumber);
     }
 }

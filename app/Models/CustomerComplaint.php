@@ -65,7 +65,24 @@ class CustomerComplaint extends Model
     public static function generateComplaintNumber(): string
     {
         $year = now()->format('Y');
-        $count = static::whereYear('created_at', $year)->count() + 1;
-        return sprintf('CMP-%s-%04d', $year, $count);
+        $prefix = "CMP-{$year}-";
+
+        // Ambil nomor urut tertinggi tahun ini termasuk yang di-soft-delete
+        $latest = static::withTrashed()
+            ->where('complaint_number', 'like', "{$prefix}%")
+            ->orderByDesc('id')
+            ->value('complaint_number');
+
+        $nextNumber = 1;
+        if ($latest && preg_match('/CMP-\d{4}-(\d+)/', $latest, $matches)) {
+            $nextNumber = (int)$matches[1] + 1;
+        }
+
+        // Pastikan nomor benar-benar unik dan belum pernah dipakai di database
+        while (static::withTrashed()->where('complaint_number', sprintf('CMP-%s-%04d', $year, $nextNumber))->exists()) {
+            $nextNumber++;
+        }
+
+        return sprintf('CMP-%s-%04d', $year, $nextNumber);
     }
 }
