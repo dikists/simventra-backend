@@ -561,6 +561,23 @@ class DriverApiController extends Controller
             $photoPath = $request->file('photo')->store('incidents', config('filesystems.default_public_disk', 'public'));
         }
 
+        // Cegah duplikasi laporan akibat double click / spam klik dari mobile app
+        $recentDuplicate = Incident::where('reported_by', $user->id)
+            ->where('title', $request->input('title'))
+            ->where('status', 'open')
+            ->where('created_at', '>=', now()->subSeconds(30))
+            ->latest()
+            ->first();
+
+        if ($recentDuplicate) {
+            return response()->json([
+                'success'         => true,
+                'message'         => 'Laporan insiden serupa sudah berhasil diterima oleh Control Tower.',
+                'incident_number' => $recentDuplicate->incident_number,
+                'incident'        => $recentDuplicate,
+            ], 200);
+        }
+
         $incidentNumber = Incident::generateIncidentNumber();
 
         $incident = Incident::create([
