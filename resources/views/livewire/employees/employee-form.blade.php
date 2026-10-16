@@ -43,10 +43,14 @@
                                     </div>
                                 </div>
                             </div>
-                            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
-                                <input type="checkbox" wire:model.live="is_driver" class="sr-only peer">
-                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                                <span class="ml-2.5 text-xs font-bold {{ $is_driver ? 'text-indigo-700' : 'text-slate-500' }}">{{ $is_driver ? 'Sopir Armada' : 'Staf Kantor' }}</span>
+                            <label style="position:relative;display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;flex-shrink:0;">
+                                <input type="checkbox" wire:model.live="is_driver" style="position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;z-index:2;margin:0;">
+                                <div style="position:relative;width:46px;height:24px;background-color:{{ $is_driver ? '#4f46e5' : '#cbd5e1' }};border-radius:9999px;transition:background-color .2s ease;flex-shrink:0;box-shadow:inset 0 1px 2px rgba(0,0,0,0.1);">
+                                    <div style="position:absolute;top:2px;left:{{ $is_driver ? '24px' : '2px' }};width:20px;height:20px;background:#ffffff;border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.25);transition:left .2s ease;"></div>
+                                </div>
+                                <span style="font-size:12.5px;font-weight:700;color:{{ $is_driver ? '#4f46e5' : '#64748b' }};">
+                                    {{ $is_driver ? 'Sopir Armada' : 'Staf Kantor' }}
+                                </span>
                             </label>
                         </div>
 
@@ -93,10 +97,14 @@
                                 <p class="text-xs text-slate-500">Buat akun login sistem web & SIMVENTRA Driver App secara otomatis</p>
                             </div>
                         </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" wire:model.live="create_user_account" class="sr-only peer">
-                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                            <span class="ml-2 text-xs font-semibold text-slate-700">{{ $create_user_account ? 'Aktif' : 'Nonaktif' }}</span>
+                        <label style="position:relative;display:inline-flex;align-items:center;gap:10px;cursor:pointer;user-select:none;flex-shrink:0;">
+                            <input type="checkbox" wire:model.live="create_user_account" style="position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;z-index:2;margin:0;">
+                            <div style="position:relative;width:46px;height:24px;background-color:{{ $create_user_account ? '#4f46e5' : '#cbd5e1' }};border-radius:9999px;transition:background-color .2s ease;flex-shrink:0;box-shadow:inset 0 1px 2px rgba(0,0,0,0.1);">
+                                <div style="position:absolute;top:2px;left:{{ $create_user_account ? '24px' : '2px' }};width:20px;height:20px;background:#ffffff;border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.25);transition:left .2s ease;"></div>
+                            </div>
+                            <span style="font-size:12.5px;font-weight:700;color:{{ $create_user_account ? '#4f46e5' : '#64748b' }};">
+                                {{ $create_user_account ? 'Aktif' : 'Nonaktif' }}
+                            </span>
                         </label>
                     </div>
 
