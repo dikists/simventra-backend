@@ -65,7 +65,7 @@
                                     @endif
                                     @if($user->employee)
                                         <span class="badge badge-gray" style="font-size:10px;padding:2px 6px;margin-top:2px;" title="{{ $user->employee->name }}">
-                                            👤 {{ $user->employee->employee_number }} • {{ ucfirst($user->employee->type) }}
+                                            👤 {{ $user->employee->employee_number }} • {{ $user->employee->type === 'sopir' ? 'Sopir Armada' : 'Staf Kantor' }}
                                         </span>
                                     @endif
                                     @if($user->id === auth()->id())
@@ -150,7 +150,7 @@
                             <option value="">-- Input Pengguna Bebas (Bukan Karyawan) --</option>
                             @foreach($availableEmployees as $emp)
                                 <option value="{{ $emp->id }}">
-                                    {{ $emp->name }} ({{ ucfirst($emp->type) }} - {{ $emp->employee_number }})
+                                    {{ $emp->name }} ({{ $emp->type === 'sopir' ? 'Sopir Armada' : 'Staf Kantor' }} - {{ $emp->employee_number }})
                                 </option>
                             @endforeach
                         </select>

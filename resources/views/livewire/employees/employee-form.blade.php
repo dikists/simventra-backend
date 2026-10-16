@@ -30,30 +30,42 @@
                             <input wire:model="name" type="text" class="form-input @error('name') form-input-error @enderror" placeholder="Nama lengkap sesuai KTP">
                             @error('name') <p class="form-error">{{ $message }}</p> @enderror
                         </div>
-                        <div>
-                            <label class="form-label">Tipe *</label>
-                            <select wire:model="type" class="form-select @error('type') form-input-error @enderror">
-                                <option value="karyawan">Karyawan</option>
-                                <option value="sopir">Sopir</option>
-                                <option value="mitra">Mitra</option>
-                            </select>
+                        <!-- Switch Pengemudi Armada (Pengganti Dropdown Tipe) -->
+                        <div class="md:col-span-2 p-3.5 rounded-xl border flex items-center justify-between {{ $is_driver ? 'bg-indigo-50/60 border-indigo-200' : 'bg-slate-50 border-slate-200' }}">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg flex items-center justify-center text-lg {{ $is_driver ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200 text-slate-500' }}">
+                                    🚚
+                                </div>
+                                <div>
+                                    <div class="text-sm font-bold text-slate-800">Ditugaskan Sebagai Pengemudi / Sopir Armada?</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">
+                                        {{ $is_driver ? 'Ya — Karyawan ini mengemudikan armada (muncul di jadwal penugasan trip, wajib SIM, & akses Driver App).' : 'Bukan — Karyawan ini adalah staf kantor / operasional / manajemen (tidak mengemudikan kendaraan).' }}
+                                    </div>
+                                </div>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                                <input type="checkbox" wire:model.live="is_driver" class="sr-only peer">
+                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                <span class="ml-2.5 text-xs font-bold {{ $is_driver ? 'text-indigo-700' : 'text-slate-500' }}">{{ $is_driver ? 'Sopir Armada' : 'Staf Kantor' }}</span>
+                            </label>
                         </div>
+
                         <div>
                             <label class="form-label">Status Kepegawaian *</label>
                             <select wire:model="employment_status" class="form-select">
-                                <option value="tetap">Tetap</option>
-                                <option value="kontrak">Kontrak</option>
+                                <option value="tetap">Karyawan Tetap</option>
+                                <option value="kontrak">Karyawan Kontrak</option>
                                 <option value="magang">Magang</option>
-                                <option value="mitra">Mitra</option>
+                                <option value="mitra">Mitra Lepas</option>
                             </select>
                         </div>
                         <div>
-                            <label class="form-label">Jabatan</label>
-                            <input wire:model="position" type="text" class="form-input" placeholder="Contoh: Sopir Senior">
+                            <label class="form-label">Jabatan (Opsional)</label>
+                            <input wire:model="position" type="text" class="form-input" placeholder="{{ $is_driver ? 'Contoh: Sopir Engkel / Driver Tronton' : 'Contoh: Staff Operasional / Dispatcher' }}">
                         </div>
                         <div>
-                            <label class="form-label">Departemen</label>
-                            <input wire:model="department" type="text" class="form-input" placeholder="Contoh: Operasional">
+                            <label class="form-label">Departemen (Opsional)</label>
+                            <input wire:model="department" type="text" class="form-input" placeholder="Contoh: Operasional / Logistik">
                         </div>
                         <div>
                             <label class="form-label">No. Telepon</label>
@@ -160,11 +172,11 @@
                 </div>
 
                 <!-- Data Sopir (conditional) -->
-                @if($type === 'sopir')
+                @if($is_driver)
                 <div class="card border-l-4 border-l-blue-500">
                     <div class="card-header">
-                        <h3 class="card-title">Data Sopir</h3>
-                        <span class="badge badge-blue">Sopir</span>
+                        <h3 class="card-title">Data Pengemudi (SIM & Kepatuhan)</h3>
+                        <span class="badge badge-blue">Sopir Armada</span>
                     </div>
                     <div class="card-body grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>

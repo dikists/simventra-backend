@@ -21,6 +21,7 @@ class EmployeeForm extends Component
     public string $employee_number = '';
     public string $name = '';
     public string $type = 'karyawan';
+    public bool $is_driver = false;
     public string $employment_status = 'tetap';
     public ?string $position = null;
     public ?string $department = null;
@@ -106,16 +107,23 @@ class EmployeeForm extends Component
         'skck_expiry'       => 'Kadaluarsa SKCK',
     ];
 
-    public function updatedType($value): void
+    public function updatedIsDriver($value): void
     {
-        if ($value === 'sopir') {
+        $this->type = $value ? 'sopir' : 'karyawan';
+        if ($value) {
             $this->user_role = 'Sopir';
+            if (empty($this->position) || $this->position === 'Staff Operasional') {
+                $this->position = 'Sopir Armada';
+            }
             if (!$this->isEdit) {
                 $this->create_user_account = true;
             }
-        } elseif ($value === 'karyawan') {
+        } else {
             if ($this->user_role === 'Sopir') {
                 $this->user_role = 'Dispatcher';
+            }
+            if ($this->position === 'Sopir Armada') {
+                $this->position = 'Staff Operasional';
             }
         }
     }
@@ -136,6 +144,7 @@ class EmployeeForm extends Component
             $this->employee = $employee;
             $this->isEdit   = true;
             $this->fill($employee->toArray());
+            $this->is_driver = ($employee->type === 'sopir');
             $this->existingPhoto = $employee->photo;
             $this->photo = null;
 
@@ -146,7 +155,7 @@ class EmployeeForm extends Component
                     $this->create_user_account = true;
                     $this->user_id             = $user->id;
                     $this->user_username       = $user->username ?? '';
-                    $this->user_role           = $user->roles->first()?->name ?? 'Sopir';
+                    $this->user_role           = $user->roles->first()?->name ?? ($this->is_driver ? 'Sopir' : 'Dispatcher');
                     $this->user_is_active      = (bool) $user->is_active;
                 }
             }
@@ -162,10 +171,11 @@ class EmployeeForm extends Component
         } else {
             $nextId = ((int) Employee::max('id')) + 1;
             $this->employee_number = 'EMP-' . str_pad((string)$nextId, 4, '0', STR_PAD_LEFT);
-            // Default untuk sopir adalah langsung buat akun login
-            if ($this->type === 'sopir') {
+            $this->is_driver = ($this->type === 'sopir');
+            if ($this->is_driver) {
                 $this->create_user_account = true;
                 $this->user_role = 'Sopir';
+                $this->position = $this->position ?: 'Sopir Armada';
             }
         }
     }
@@ -185,6 +195,8 @@ class EmployeeForm extends Component
             }
         }
 
+        $this->type = $this->is_driver ? 'sopir' : 'karyawan';
+
         $validated = $this->validate();
 
         // Convert empty strings to null for all nullable fields (dates, strings, etc.)
@@ -195,6 +207,7 @@ class EmployeeForm extends Component
         // Preserve boolean types
         $validated['has_skck'] = (bool) ($this->has_skck ?? false);
         $validated['id_card_active'] = (bool) ($this->id_card_active ?? true);
+        $validated['type'] = $this->is_driver ? 'sopir' : 'karyawan';
 
         // Handle photo upload
         if ($this->photo && !is_string($this->photo)) {
@@ -210,7 +223,7 @@ class EmployeeForm extends Component
         }
 
         // Sopir WAJIB memiliki akun pengguna untuk login aplikasi mobile (Satu Kesatuan)
-        if ($this->type === 'sopir') {
+        if ($this->is_driver) {
             $this->create_user_account = true;
             $this->user_role = 'Sopir';
         }

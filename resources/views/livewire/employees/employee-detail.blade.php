@@ -9,8 +9,8 @@
             <div>
                 <div style="display:flex;align-items:center;gap:10px;">
                     <h1 class="page-title" style="margin:0;">{{ $employee->name }}</h1>
-                    <span class="badge badge-{{ $employee->type === 'sopir' ? 'purple' : ($employee->type === 'mitra' ? 'teal' : 'blue') }}">
-                        {{ ucfirst($employee->type) }}
+                    <span class="badge badge-{{ $employee->type === 'sopir' ? 'purple' : 'blue' }}">
+                        {{ $employee->type === 'sopir' ? '🚚 Sopir Armada' : '👔 Staf Kantor' }}
                     </span>
                     <span class="badge badge-{{ $employee->status === 'active' ? 'green' : ($employee->status === 'inactive' ? 'gray' : 'red') }}">
                         {{ ucfirst($employee->status) }}

@@ -40,10 +40,9 @@
                 class="form-input" placeholder="Cari nama, no. karyawan, NIK...">
         </div>
         <select wire:model.live="filterType" class="form-select" style="width:160px;">
-            <option value="">Semua Tipe</option>
-            <option value="karyawan">Karyawan</option>
-            <option value="sopir">Sopir</option>
-            <option value="mitra">Mitra</option>
+            <option value="">Semua Peran</option>
+            <option value="sopir">Sopir Armada</option>
+            <option value="karyawan">Staf Kantor</option>
         </select>
         <select wire:model.live="filterStatus" class="form-select" style="width:160px;">
             <option value="">Semua Status</option>
@@ -111,8 +110,8 @@
                             </div>
                         </td>
                         <td>
-                            <span class="badge badge-{{ $employee->type === 'sopir' ? 'purple' : ($employee->type === 'mitra' ? 'teal' : 'blue') }}">
-                                {{ ucfirst($employee->type) }}
+                            <span class="badge badge-{{ $employee->type === 'sopir' ? 'purple' : 'blue' }}">
+                                {{ $employee->type === 'sopir' ? '🚚 Sopir Armada' : '👔 Staf Kantor' }}
                             </span>
                         </td>
                         <td>
