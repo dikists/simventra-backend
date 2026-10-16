@@ -117,8 +117,11 @@
         <div class="card" wire:ignore style="overflow:hidden;padding:0;">
             <div style="padding:14px 18px;border-bottom:1px solid #eff2f7;display:flex;align-items:center;justify-content:space-between;">
                 <div>
-                    <div style="font-size:13.5px;font-weight:700;color:#2a3042;">Pilih Lokasi di Peta</div>
-                    <div style="font-size:11.5px;color:#64748b;margin-top:2px;">Klik di peta untuk menetapkan koordinat gudang</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:13.5px;font-weight:700;color:#2a3042;">Pilih Lokasi di Peta</span>
+                        <span id="warehouse-map-badge" style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;">Google Maps</span>
+                    </div>
+                    <div style="font-size:11.5px;color:#64748b;margin-top:2px;">Klik di peta atau geser pin untuk menetapkan koordinat gudang</div>
                 </div>
                 <button type="button" onclick="resetMapView()"
                     style="padding:6px 12px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;">
@@ -127,29 +130,98 @@
             </div>
             <div id="warehouse-map" wire:ignore style="width:100%;height:480px;z-index:1;"></div>
             <div style="padding:10px 16px;background:#f8fafc;border-top:1px solid #eff2f7;font-size:11.5px;color:#64748b;">
-                💡 <strong>Tip:</strong> Klik di peta → koordinat & alamat terisi otomatis. Zoom in untuk akurasi lebih tinggi.
+                💡 <strong>Tip:</strong> Klik di peta atau geser pin &bull; Alamat & koordinat terisi otomatis dengan Google Places.
             </div>
         </div>
     </div>
 
 @script
 <script>
-    let warehouseMap = null;
-    let warehouseMarker = null;
+    let warehouseGoogleMap = null;
+    let warehouseGoogleMarker = null;
+    let warehouseLeafletMap = null;
+    let warehouseLeafletMarker = null;
+
+    function isGoogleReady() {
+        return typeof window.google !== 'undefined' && 
+               typeof window.google.maps !== 'undefined' && 
+               typeof window.google.maps.Map === 'function';
+    }
 
     const initWarehouseMap = () => {
         const container = document.getElementById('warehouse-map');
         if (!container) return;
 
-        if (warehouseMap) {
-            warehouseMap.invalidateSize();
-            return;
-        }
-
+        const badgeEl = document.getElementById('warehouse-map-badge');
         const initLat = {{ (float) $lat }};
         const initLng = {{ (float) $lng }};
 
-        warehouseMap = L.map('warehouse-map', {
+        if (isGoogleReady()) {
+            if (badgeEl) {
+                badgeEl.innerText = 'Google Maps';
+                badgeEl.style.background = '#e0f2fe';
+                badgeEl.style.color = '#0369a1';
+                badgeEl.style.borderColor = '#bae6fd';
+            }
+
+            if (warehouseLeafletMap) {
+                try { warehouseLeafletMap.remove(); } catch(e) {}
+                warehouseLeafletMap = null;
+            }
+
+            if (!warehouseGoogleMap || warehouseGoogleMap.getDiv() !== container) {
+                container.innerHTML = '';
+                warehouseGoogleMap = new google.maps.Map(container, {
+                    center: { lat: initLat, lng: initLng },
+                    zoom: 15,
+                    mapTypeControl: true,
+                    streetViewControl: true,
+                    fullscreenControl: true,
+                    gestureHandling: 'greedy'
+                });
+
+                warehouseGoogleMarker = new google.maps.Marker({
+                    position: { lat: initLat, lng: initLng },
+                    map: warehouseGoogleMap,
+                    draggable: true,
+                    title: '📦 Lokasi Gudang'
+                });
+
+                warehouseGoogleMap.addListener('click', function(e) {
+                    const lat = e.latLng.lat();
+                    const lng = e.latLng.lng();
+                    moveMarker(lat, lng);
+                });
+
+                warehouseGoogleMarker.addListener('dragend', function(e) {
+                    const lat = e.latLng.lat();
+                    const lng = e.latLng.lng();
+                    moveMarker(lat, lng);
+                });
+            } else {
+                warehouseGoogleMarker.setPosition({ lat: initLat, lng: initLng });
+                warehouseGoogleMap.panTo({ lat: initLat, lng: initLng });
+            }
+            return;
+        }
+
+        // Leaflet fallback
+        if (badgeEl) {
+            badgeEl.innerText = 'OpenStreetMap';
+            badgeEl.style.background = '#fef3c7';
+            badgeEl.style.color = '#92400e';
+            badgeEl.style.borderColor = '#fde68a';
+        }
+
+        if (typeof L === 'undefined') return;
+
+        if (warehouseLeafletMap) {
+            warehouseLeafletMap.invalidateSize();
+            return;
+        }
+
+        container.innerHTML = '';
+        warehouseLeafletMap = L.map('warehouse-map', {
             center: [initLat, initLng],
             zoom: 14,
         });
@@ -157,43 +229,48 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(warehouseMap);
+        }).addTo(warehouseLeafletMap);
 
-        // Marker awal
-        warehouseMarker = L.marker([initLat, initLng], { draggable: true })
-            .addTo(warehouseMap)
+        warehouseLeafletMarker = L.marker([initLat, initLng], { draggable: true })
+            .addTo(warehouseLeafletMap)
             .bindPopup('📦 Lokasi Gudang')
             .openPopup();
 
-        // Klik di peta → update marker & coords
-        warehouseMap.on('click', function(e) {
+        warehouseLeafletMap.on('click', function(e) {
             const { lat, lng } = e.latlng;
             moveMarker(lat, lng);
         });
 
-        // Drag marker → update coords
-        warehouseMarker.on('dragend', function(e) {
+        warehouseLeafletMarker.on('dragend', function(e) {
             const { lat, lng } = e.target.getLatLng();
             moveMarker(lat, lng);
         });
-
-        setTimeout(() => {
-            if (warehouseMap) warehouseMap.invalidateSize();
-        }, 200);
     };
 
     window.moveMarker = function(lat, lng) {
-        if (warehouseMarker && warehouseMap) {
-            warehouseMarker.setLatLng([lat, lng]);
-            warehouseMap.panTo([lat, lng]);
+        if (warehouseGoogleMap && warehouseGoogleMarker) {
+            warehouseGoogleMarker.setPosition({ lat: parseFloat(lat), lng: parseFloat(lng) });
+            warehouseGoogleMap.panTo({ lat: parseFloat(lat), lng: parseFloat(lng) });
+        } else if (warehouseLeafletMap && warehouseLeafletMarker) {
+            warehouseLeafletMarker.setLatLng([lat, lng]);
+            warehouseLeafletMap.panTo([lat, lng]);
         }
-        $wire.setCoords(lat, lng);
 
-        // Reverse geocode via Nominatim
+        $wire.setCoords(lat, lng);
         reverseGeocode(lat, lng);
     };
 
     window.reverseGeocode = function(lat, lng) {
+        if (isGoogleReady()) {
+            const geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ location: { lat: parseFloat(lat), lng: parseFloat(lng) } }, function(results, status) {
+                if (status === 'OK' && results && results[0]) {
+                    $wire.setAddress(results[0].formatted_address);
+                }
+            });
+            return;
+        }
+
         fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=id`)
             .then(r => r.json())
             .then(data => {
@@ -213,9 +290,12 @@
         const lng = parseFloat(lngInput.value);
 
         if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-            if (warehouseMap && warehouseMarker) {
-                warehouseMarker.setLatLng([lat, lng]);
-                warehouseMap.panTo([lat, lng]);
+            if (warehouseGoogleMap && warehouseGoogleMarker) {
+                warehouseGoogleMarker.setPosition({ lat, lng });
+                warehouseGoogleMap.panTo({ lat, lng });
+            } else if (warehouseLeafletMap && warehouseLeafletMarker) {
+                warehouseLeafletMarker.setLatLng([lat, lng]);
+                warehouseLeafletMap.panTo([lat, lng]);
             }
         }
     };
@@ -225,17 +305,19 @@
         const statusEl = document.getElementById('search-status');
         if (!q) return;
 
-        // 1. Cek apakah input adalah pasangan koordinat atau link Google Maps
-        // Contoh: "-6.2202, 106.8579" atau "-6.2202 106.8579" atau URL google maps
         const coordMatch = q.match(/(-?\d{1,2}\.\d+)[,\s]+(-?\d{1,3}\.\d+)/);
         if (coordMatch) {
             const latF = parseFloat(coordMatch[1]);
             const lngF = parseFloat(coordMatch[2]);
 
             if (latF >= -90 && latF <= 90 && lngF >= -180 && lngF <= 180) {
-                if (warehouseMap && warehouseMarker) {
-                    warehouseMap.setView([latF, lngF], 17);
-                    warehouseMarker.setLatLng([latF, lngF]);
+                if (warehouseGoogleMap && warehouseGoogleMarker) {
+                    warehouseGoogleMarker.setPosition({ lat: latF, lng: lngF });
+                    warehouseGoogleMap.setCenter({ lat: latF, lng: lngF });
+                    warehouseGoogleMap.setZoom(16);
+                } else if (warehouseLeafletMap && warehouseLeafletMarker) {
+                    warehouseLeafletMap.setView([latF, lngF], 17);
+                    warehouseLeafletMarker.setLatLng([latF, lngF]);
                 }
                 $wire.setCoords(latF, lngF);
                 reverseGeocode(latF, lngF);
@@ -245,9 +327,37 @@
             }
         }
 
-        statusEl.innerHTML = '<span style="color:#556ee6;">Mencari lokasi di OpenStreetMap...</span>';
+        if (isGoogleReady()) {
+            statusEl.innerHTML = '<span style="color:#2563eb;">Mencari lokasi di Google Maps...</span>';
+            const geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ address: q, componentRestrictions: { country: 'id' } }, function(results, status) {
+                if (status === 'OK' && results && results[0]) {
+                    const loc = results[0].geometry.location;
+                    const latF = loc.lat();
+                    const lngF = loc.lng();
+                    const address = results[0].formatted_address;
 
-        // 2. Cari via Nominatim (OpenStreetMap)
+                    if (warehouseGoogleMap && warehouseGoogleMarker) {
+                        warehouseGoogleMarker.setPosition({ lat: latF, lng: lngF });
+                        warehouseGoogleMap.setCenter({ lat: latF, lng: lngF });
+                        warehouseGoogleMap.setZoom(16);
+                    } else if (warehouseLeafletMap && warehouseLeafletMarker) {
+                        warehouseLeafletMap.setView([latF, lngF], 16);
+                        warehouseLeafletMarker.setLatLng([latF, lngF]);
+                        warehouseLeafletMap.invalidateSize();
+                    }
+                    $wire.setCoords(latF, lngF);
+                    $wire.setAddress(address);
+                    statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Lokasi ditemukan: ' + address + '</span>';
+                    setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
+                } else {
+                    statusEl.innerHTML = '<span style="color:#ef4444;">❌ Lokasi tidak ditemukan di Google Maps. Coba kata kunci lain atau pilih dari rekomendasi.</span>';
+                }
+            });
+            return;
+        }
+
+        statusEl.innerHTML = '<span style="color:#556ee6;">Mencari lokasi di OpenStreetMap...</span>';
         fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=id`)
             .then(r => r.json())
             .then(data => {
@@ -256,25 +366,17 @@
                     const latF = parseFloat(lat);
                     const lngF = parseFloat(lon);
 
-                    if (warehouseMap && warehouseMarker) {
-                        warehouseMap.setView([latF, lngF], 16);
-                        warehouseMarker.setLatLng([latF, lngF]);
-                        warehouseMap.invalidateSize();
+                    if (warehouseLeafletMap && warehouseLeafletMarker) {
+                        warehouseLeafletMap.setView([latF, lngF], 16);
+                        warehouseLeafletMarker.setLatLng([latF, lngF]);
+                        warehouseLeafletMap.invalidateSize();
                     }
                     $wire.setCoords(latF, lngF);
                     $wire.setAddress(display_name);
                     statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Lokasi ditemukan: ' + display_name + '</span>';
                     setTimeout(() => { statusEl.innerHTML = ''; }, 5000);
                 } else {
-                    statusEl.innerHTML = `
-                        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;color:#991b1b;line-height:1.4;">
-                            <strong>Lokasi "${q}" tidak ditemukan di database OpenStreetMap.</strong>
-                            <div style="margin-top:4px;color:#475569;font-size:11px;">
-                                💡 <em>Catatan:</em> OpenStreetMap tidak menyimpan nama perusahaan komersial/bisnis seperti Google Maps.
-                                <br>Coba cari dengan <strong>nama jalan/daerah</strong> (misal: <code>Bukit Duri Tanjakan</code>), atau <strong>copy-paste koordinat dari Google Maps</strong> (klik kanan di Google Maps &rarr; Salin koordinat, contoh: <code>-6.2202, 106.8579</code>).
-                            </div>
-                        </div>
-                    `;
+                    statusEl.innerHTML = '<span style="color:#ef4444;">❌ Lokasi tidak ditemukan di OpenStreetMap.</span>';
                 }
             })
             .catch(() => {
@@ -283,19 +385,88 @@
     };
 
     window.resetMapView = function() {
-        if (warehouseMap && warehouseMarker) {
-            warehouseMap.setView(warehouseMarker.getLatLng(), 14);
-            warehouseMap.invalidateSize();
+        const initLat = {{ (float) $lat }};
+        const initLng = {{ (float) $lng }};
+        if (warehouseGoogleMap && warehouseGoogleMarker) {
+            warehouseGoogleMap.setCenter({ lat: initLat, lng: initLng });
+            warehouseGoogleMap.setZoom(15);
+        } else if (warehouseLeafletMap && warehouseLeafletMarker) {
+            warehouseLeafletMap.setView([initLat, initLng], 14);
+            warehouseLeafletMap.invalidateSize();
         }
     };
 
-    // Init
-    if (typeof L !== 'undefined') {
-        initWarehouseMap();
-    } else {
-        window.addEventListener('load', initWarehouseMap);
+    function setupWarehouseGoogleAutocomplete() {
+        const searchInput = document.getElementById('search-input');
+        if (searchInput && isGoogleReady() && google.maps.places) {
+            if (!searchInput.dataset.autocompleteBound) {
+                searchInput.dataset.autocompleteBound = 'true';
+                const autocomplete = new google.maps.places.Autocomplete(searchInput, {
+                    componentRestrictions: { country: 'id' },
+                    fields: ['geometry', 'name', 'formatted_address']
+                });
+
+                autocomplete.addListener('place_changed', function() {
+                    const place = autocomplete.getPlace();
+                    if (!place.geometry || !place.geometry.location) {
+                        window.searchLocation();
+                        return;
+                    }
+
+                    const lat = place.geometry.location.lat();
+                    const lng = place.geometry.location.lng();
+                    const name = place.name || '';
+                    const addr = place.formatted_address || '';
+                    const full = (name && !addr.startsWith(name)) ? `${name}, ${addr}` : (addr || name);
+
+                    if (warehouseGoogleMap && warehouseGoogleMarker) {
+                        warehouseGoogleMarker.setPosition({ lat, lng });
+                        warehouseGoogleMap.setCenter({ lat, lng });
+                        warehouseGoogleMap.setZoom(16);
+                    } else if (warehouseLeafletMap && warehouseLeafletMarker) {
+                        warehouseLeafletMap.setView([lat, lng], 16);
+                        warehouseLeafletMarker.setLatLng([lat, lng]);
+                        warehouseLeafletMap.invalidateSize();
+                    }
+                    $wire.setCoords(lat, lng);
+                    $wire.setAddress(full);
+
+                    const statusEl = document.getElementById('search-status');
+                    if (statusEl) {
+                        statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Tempat dipilih dari Google: ' + (place.name || full) + '</span>';
+                        setTimeout(() => { statusEl.innerHTML = ''; }, 4000);
+                    }
+                });
+            }
+        }
     }
-    document.addEventListener('livewire:navigated', initWarehouseMap);
+
+    function bootstrapWarehouseMap(retryCount = 0) {
+        const hasGoogleKey = Boolean(window.GOOGLE_MAPS_KEY || "{{ config('services.google.maps_api_key') }}");
+
+        if (isGoogleReady()) {
+            initWarehouseMap();
+            setupWarehouseGoogleAutocomplete();
+            return;
+        }
+
+        if (hasGoogleKey && retryCount < 30) {
+            setTimeout(() => bootstrapWarehouseMap(retryCount + 1), 100);
+            return;
+        }
+
+        initWarehouseMap();
+    }
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        bootstrapWarehouseMap();
+    } else {
+        window.addEventListener('DOMContentLoaded', () => bootstrapWarehouseMap());
+    }
+
+    document.addEventListener('livewire:navigated', () => {
+        bootstrapWarehouseMap();
+    });
 </script>
 @endscript
 </div>

@@ -472,12 +472,13 @@
                             @endif
                         </div>
 
-                        <!-- Interactive Leaflet Map Picker Panel -->
+                        <!-- Interactive Leaflet / Google Map Picker Panel -->
                         <div x-show="showMap" x-transition
                              style="display:none;margin-top:10px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;padding:12px;">
                             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                                <div style="font-size:12px;font-weight:700;color:#1e293b;">
-                                    📍 Tentukan Lokasi Tujuan di Peta
+                                <div style="font-size:12px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:6px;">
+                                    <span>📍 Tentukan Lokasi Tujuan di Peta</span>
+                                    <span id="map-engine-badge" style="font-size:10px;padding:1px 6px;border-radius:4px;background:#e0f2fe;color:#0369a1;font-weight:600;">Google Maps</span>
                                 </div>
                                 <div style="font-size:11px;color:#64748b;">
                                     Klik titik peta / geser pin untuk memilih
@@ -487,7 +488,7 @@
                             <!-- Search Input inside Map -->
                             <div style="display:flex;gap:6px;margin-bottom:6px;">
                                 <input type="text" id="dest-map-search"
-                                       placeholder="Ketik alamat/nama jalan/gedung atau koordinat Google Maps..."
+                                       placeholder="Ketik nama tempat/gedung/jalan (Google Maps Autocomplete)..."
                                        style="flex:1;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;outline:none;"
                                        onkeydown="if(event.key==='Enter'){event.preventDefault();window.searchDestinationOnMap();}">
                                 <button type="button" onclick="window.searchDestinationOnMap()"
@@ -497,7 +498,7 @@
                             </div>
                             <div id="dest-map-status" style="font-size:11px;margin-bottom:6px;"></div>
 
-                            <!-- Leaflet Map Container -->
+                            <!-- Map Container -->
                             <div id="dest-picker-map" wire:ignore style="width:100%;height:250px;border-radius:8px;border:1px solid #cbd5e1;z-index:1;"></div>
 
                             <!-- Selected Destination Display & Apply -->
@@ -606,6 +607,10 @@
 <script>
     let destPickerMap = null;
     let destPickerMarker = null;
+    let destGoogleMap = null;
+    let destGoogleMarker = null;
+    let destSearchAutocomplete = null;
+    let destInputAutocomplete = null;
     let currentPickedText = '';
     let currentPickedLat = null;
     let currentPickedLng = null;
@@ -613,62 +618,259 @@
     const defaultLat = {{ (float) ($primaryWarehouse->latitude ?? -6.2088) }};
     const defaultLng = {{ (float) ($primaryWarehouse->longitude ?? 106.8456) }};
 
+    function isGoogleReady() {
+        return typeof window.google !== 'undefined' && 
+               typeof window.google.maps !== 'undefined' && 
+               typeof window.google.maps.Map === 'function';
+    }
+
     window.initDestinationPicker = function() {
         const container = document.getElementById('dest-picker-map');
         if (!container) return;
 
-        if (typeof L === 'undefined') {
-            console.warn('Leaflet belum dimuat.');
+        const badgeEl = document.getElementById('map-engine-badge');
+
+        if (isGoogleReady()) {
+            if (badgeEl) {
+                badgeEl.innerText = 'Google Maps';
+                badgeEl.style.background = '#e0f2fe';
+                badgeEl.style.color = '#0369a1';
+            }
+
+            // Cleanup Leaflet if previously attached
+            if (destPickerMap) {
+                try { destPickerMap.remove(); } catch(e) {}
+                destPickerMap = null;
+            }
+
+            const targetLat = currentPickedLat || defaultLat;
+            const targetLng = currentPickedLng || defaultLng;
+
+            if (!destGoogleMap || destGoogleMap.getDiv() !== container) {
+                container.innerHTML = '';
+                destGoogleMap = new google.maps.Map(container, {
+                    center: { lat: targetLat, lng: targetLng },
+                    zoom: 15,
+                    mapTypeControl: true,
+                    mapTypeControlOptions: {
+                        style: google.maps.MapTypeControlStyle.DROPDOWN_MENU
+                    },
+                    streetViewControl: false,
+                    fullscreenControl: false,
+                    gestureHandling: 'greedy'
+                });
+
+                destGoogleMarker = new google.maps.Marker({
+                    position: { lat: targetLat, lng: targetLng },
+                    map: destGoogleMap,
+                    draggable: true,
+                    title: "Titik Tujuan Pengiriman"
+                });
+
+                destGoogleMap.addListener('click', function(e) {
+                    const lat = e.latLng.lat();
+                    const lng = e.latLng.lng();
+                    window.updateDestMarkerGoogle(lat, lng);
+                });
+
+                destGoogleMarker.addListener('dragend', function(e) {
+                    const lat = e.latLng.lat();
+                    const lng = e.latLng.lng();
+                    window.updateDestMarkerGoogle(lat, lng);
+                });
+            } else {
+                destGoogleMap.setCenter({ lat: targetLat, lng: targetLng });
+                destGoogleMarker.setPosition({ lat: targetLat, lng: targetLng });
+            }
+
+            setTimeout(() => {
+                if (destGoogleMap) {
+                    google.maps.event.trigger(destGoogleMap, 'resize');
+                    destGoogleMap.setCenter({ lat: targetLat, lng: targetLng });
+                }
+            }, 150);
+
+            setupGoogleAutocomplete();
+
+        } else {
+            // Fallback Leaflet
+            if (badgeEl) {
+                badgeEl.innerText = 'OpenStreetMap';
+                badgeEl.style.background = '#fef3c7';
+                badgeEl.style.color = '#92400e';
+            }
+
+            if (typeof L === 'undefined') {
+                console.warn('Leaflet & Google Maps belum dimuat.');
+                return;
+            }
+
+            if (destPickerMap) {
+                try {
+                    if (destPickerMap._container !== container) {
+                        destPickerMap.remove();
+                        destPickerMap = null;
+                    }
+                } catch(e) {
+                    destPickerMap = null;
+                }
+            }
+
+            if (!destPickerMap) {
+                container.innerHTML = '';
+                destPickerMap = L.map('dest-picker-map', {
+                    center: [defaultLat, defaultLng],
+                    zoom: 13,
+                });
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(destPickerMap);
+
+                destPickerMarker = L.marker([defaultLat, defaultLng], { draggable: true })
+                    .addTo(destPickerMap)
+                    .bindPopup('📍 Geser atau klik peta untuk memilih tujuan')
+                    .openPopup();
+
+                destPickerMap.on('click', function(e) {
+                    const { lat, lng } = e.latlng;
+                    window.updateDestMarkerLeaflet(lat, lng);
+                });
+
+                destPickerMarker.on('dragend', function(e) {
+                    const { lat, lng } = e.target.getLatLng();
+                    window.updateDestMarkerLeaflet(lat, lng);
+                });
+            }
+
+            setTimeout(() => {
+                if (destPickerMap) {
+                    destPickerMap.invalidateSize();
+                }
+            }, 200);
+        }
+    };
+
+    function setupGoogleAutocomplete() {
+        if (!isGoogleReady() || !google.maps.places) return;
+
+        // 1. Search box inside map popup (#dest-map-search)
+        const searchInput = document.getElementById('dest-map-search');
+        if (searchInput && !searchInput.dataset.autocompleteBound) {
+            searchInput.dataset.autocompleteBound = 'true';
+            destSearchAutocomplete = new google.maps.places.Autocomplete(searchInput, {
+                componentRestrictions: { country: 'id' },
+                fields: ['geometry', 'name', 'formatted_address']
+            });
+
+            destSearchAutocomplete.addListener('place_changed', function() {
+                const place = destSearchAutocomplete.getPlace();
+                if (!place.geometry || !place.geometry.location) {
+                    window.searchDestinationOnMap();
+                    return;
+                }
+
+                const lat = place.geometry.location.lat();
+                const lng = place.geometry.location.lng();
+                const placeName = place.name || '';
+                const address = place.formatted_address || '';
+                const fullText = (placeName && !address.startsWith(placeName)) ? `${placeName}, ${address}` : (address || placeName);
+
+                currentPickedLat = lat;
+                currentPickedLng = lng;
+                currentPickedText = fullText;
+
+                if (destGoogleMap && destGoogleMarker) {
+                    destGoogleMap.setCenter({ lat, lng });
+                    destGoogleMap.setZoom(16);
+                    destGoogleMarker.setPosition({ lat, lng });
+                }
+
+                const labelEl = document.getElementById('dest-map-picked-label');
+                if (labelEl) labelEl.innerText = fullText;
+
+                const statusEl = document.getElementById('dest-map-status');
+                if (statusEl) {
+                    statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Lokasi dipilih dari Google: ' + (place.name || fullText) + '</span>';
+                    setTimeout(() => { if (statusEl) statusEl.innerHTML = ''; }, 4000);
+                }
+            });
+        }
+
+        // 2. Main Destination Form Input (#dispatch-destination-input)
+        const mainInput = document.getElementById('dispatch-destination-input');
+        if (mainInput && !mainInput.dataset.autocompleteBound) {
+            mainInput.dataset.autocompleteBound = 'true';
+            destInputAutocomplete = new google.maps.places.Autocomplete(mainInput, {
+                componentRestrictions: { country: 'id' },
+                fields: ['geometry', 'name', 'formatted_address']
+            });
+
+            destInputAutocomplete.addListener('place_changed', function() {
+                const place = destInputAutocomplete.getPlace();
+                if (!place.geometry || !place.geometry.location) return;
+
+                const lat = place.geometry.location.lat();
+                const lng = place.geometry.location.lng();
+                const placeName = place.name || '';
+                const address = place.formatted_address || '';
+                const fullText = (placeName && !address.startsWith(placeName)) ? `${placeName}, ${address}` : (address || placeName);
+
+                currentPickedLat = lat;
+                currentPickedLng = lng;
+                currentPickedText = fullText;
+
+                $wire.set('destination', fullText);
+                $wire.set('destinationLat', lat);
+                $wire.set('destinationLng', lng);
+
+                if (destGoogleMap && destGoogleMarker) {
+                    destGoogleMap.setCenter({ lat, lng });
+                    destGoogleMap.setZoom(16);
+                    destGoogleMarker.setPosition({ lat, lng });
+                }
+
+                const labelEl = document.getElementById('dest-map-picked-label');
+                if (labelEl) labelEl.innerText = fullText;
+            });
+        }
+    }
+
+    // Google Maps Update Marker & Reverse Geocoding
+    window.updateDestMarkerGoogle = function(lat, lng, customLabel = null) {
+        currentPickedLat = lat;
+        currentPickedLng = lng;
+
+        if (destGoogleMarker && destGoogleMap) {
+            destGoogleMarker.setPosition({ lat, lng });
+            destGoogleMap.panTo({ lat, lng });
+        }
+
+        const labelEl = document.getElementById('dest-map-picked-label');
+
+        if (customLabel) {
+            currentPickedText = customLabel;
+            if (labelEl) labelEl.innerText = customLabel;
             return;
         }
 
-        // Jika container map telah dibuat ulang oleh Livewire
-        if (destPickerMap) {
-            try {
-                if (destPickerMap._container !== container) {
-                    destPickerMap.remove();
-                    destPickerMap = null;
-                }
-            } catch(e) {
-                destPickerMap = null;
+        if (labelEl) labelEl.innerText = `Mencari alamat Google Maps... (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
+
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({ location: { lat, lng } }, function(results, status) {
+            if (status === 'OK' && results && results[0]) {
+                currentPickedText = results[0].formatted_address;
+                if (labelEl) labelEl.innerText = currentPickedText;
+            } else {
+                currentPickedText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                if (labelEl) labelEl.innerText = currentPickedText;
             }
-        }
-
-        if (!destPickerMap) {
-            destPickerMap = L.map('dest-picker-map', {
-                center: [defaultLat, defaultLng],
-                zoom: 13,
-            });
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(destPickerMap);
-
-            destPickerMarker = L.marker([defaultLat, defaultLng], { draggable: true })
-                .addTo(destPickerMap)
-                .bindPopup('📍 Geser atau klik peta untuk memilih tujuan')
-                .openPopup();
-
-            destPickerMap.on('click', function(e) {
-                const { lat, lng } = e.latlng;
-                window.updateDestMarker(lat, lng);
-            });
-
-            destPickerMarker.on('dragend', function(e) {
-                const { lat, lng } = e.target.getLatLng();
-                window.updateDestMarker(lat, lng);
-            });
-        }
-
-        setTimeout(() => {
-            if (destPickerMap) {
-                destPickerMap.invalidateSize();
-            }
-        }, 200);
+        });
     };
 
-    window.updateDestMarker = function(lat, lng, customLabel = null) {
+    // Leaflet Update Marker & Reverse Geocoding (Fallback)
+    window.updateDestMarkerLeaflet = function(lat, lng, customLabel = null) {
         currentPickedLat = lat;
         currentPickedLng = lng;
 
@@ -715,51 +917,86 @@
         const statusEl = document.getElementById('dest-map-status');
         if (!q) return;
 
-        // 1. Cek apakah format koordinat Google Maps (misal: -6.2202, 106.8579)
+        // 1. Cek apakah format koordinat (misal: -6.2202, 106.8579)
         const coordMatch = q.match(/(-?\d{1,2}\.\d+)[,\s]+(-?\d{1,3}\.\d+)/);
         if (coordMatch) {
             const latF = parseFloat(coordMatch[1]);
             const lngF = parseFloat(coordMatch[2]);
             if (latF >= -90 && latF <= 90 && lngF >= -180 && lngF <= 180) {
-                if (destPickerMap) destPickerMap.setView([latF, lngF], 16);
-                window.updateDestMarker(latF, lngF);
+                if (isGoogleReady() && destGoogleMap) {
+                    destGoogleMap.setCenter({ lat: latF, lng: lngF });
+                    destGoogleMap.setZoom(16);
+                    window.updateDestMarkerGoogle(latF, lngF);
+                } else if (destPickerMap) {
+                    destPickerMap.setView([latF, lngF], 16);
+                    window.updateDestMarkerLeaflet(latF, lngF);
+                }
                 if (statusEl) {
-                    statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Koordinat Google Maps terdeteksi!</span>';
+                    statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Koordinat terdeteksi!</span>';
                     setTimeout(() => { if (statusEl) statusEl.innerHTML = ''; }, 3500);
                 }
                 return;
             }
         }
 
-        // 2. Cari via Nominatim OpenStreetMap
-        if (statusEl) statusEl.innerHTML = '<span style="color:#2563eb;">Mencari lokasi di OpenStreetMap...</span>';
+        // 2. Pencarian Tempat
+        if (isGoogleReady()) {
+            if (statusEl) statusEl.innerHTML = '<span style="color:#2563eb;">Mencari di Google Maps...</span>';
+            const geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ address: q, componentRestrictions: { country: 'id' } }, function(results, status) {
+                if (status === 'OK' && results && results[0]) {
+                    const loc = results[0].geometry.location;
+                    const lat = loc.lat();
+                    const lng = loc.lng();
+                    const address = results[0].formatted_address;
 
-        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=id`)
-            .then(r => r.json())
-            .then(data => {
-                if (data && data.length > 0) {
-                    const { lat, lon, display_name } = data[0];
-                    const latF = parseFloat(lat);
-                    const lngF = parseFloat(lon);
-
-                    if (destPickerMap) {
-                        destPickerMap.setView([latF, lngF], 16);
-                        destPickerMap.invalidateSize();
+                    if (destGoogleMap && destGoogleMarker) {
+                        destGoogleMap.setCenter({ lat, lng });
+                        destGoogleMap.setZoom(16);
                     }
-                    window.updateDestMarker(latF, lngF, display_name);
+                    window.updateDestMarkerGoogle(lat, lng, address);
+
                     if (statusEl) {
-                        statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Lokasi ditemukan: ' + display_name + '</span>';
+                        statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Ditemukan: ' + address + '</span>';
                         setTimeout(() => { if (statusEl) statusEl.innerHTML = ''; }, 4500);
                     }
                 } else {
                     if (statusEl) {
-                        statusEl.innerHTML = '<span style="color:#ef4444;">❌ Lokasi tidak ditemukan. Coba gunakan nama jalan/daerah atau paste koordinat Google Maps.</span>';
+                        statusEl.innerHTML = '<span style="color:#ef4444;">❌ Lokasi tidak ditemukan di Google Maps. Coba ketik nama jalan, gedung, atau pilih dari rekomendasi.</span>';
                     }
                 }
-            })
-            .catch(() => {
-                if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444;">❌ Gagal menghubungi server pencari peta.</span>';
             });
+        } else {
+            // Fallback via Nominatim OpenStreetMap
+            if (statusEl) statusEl.innerHTML = '<span style="color:#2563eb;">Mencari lokasi di OpenStreetMap...</span>';
+
+            fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=id`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        const { lat, lon, display_name } = data[0];
+                        const latF = parseFloat(lat);
+                        const lngF = parseFloat(lon);
+
+                        if (destPickerMap) {
+                            destPickerMap.setView([latF, lngF], 16);
+                            destPickerMap.invalidateSize();
+                        }
+                        window.updateDestMarkerLeaflet(latF, lngF, display_name);
+                        if (statusEl) {
+                            statusEl.innerHTML = '<span style="color:#059669;font-weight:600;">✅ Lokasi ditemukan: ' + display_name + '</span>';
+                            setTimeout(() => { if (statusEl) statusEl.innerHTML = ''; }, 4500);
+                        }
+                    } else {
+                        if (statusEl) {
+                            statusEl.innerHTML = '<span style="color:#ef4444;">❌ Lokasi tidak ditemukan di OpenStreetMap.</span>';
+                        }
+                    }
+                })
+                .catch(() => {
+                    if (statusEl) statusEl.innerHTML = '<span style="color:#ef4444;">❌ Gagal menghubungi server pencari peta.</span>';
+                });
+        }
     };
 
     window.applyDestinationPicked = function() {
@@ -796,14 +1033,24 @@
             if (wh.lat && wh.lng) {
                 window.initDestinationPicker();
                 setTimeout(() => {
-                    if (destPickerMap) {
+                    if (isGoogleReady() && destGoogleMap) {
+                        destGoogleMap.setCenter({ lat: currentPickedLat, lng: currentPickedLng });
+                        destGoogleMap.setZoom(16);
+                        window.updateDestMarkerGoogle(currentPickedLat, currentPickedLng, text);
+                    } else if (destPickerMap) {
                         destPickerMap.setView([wh.lat, wh.lng], 16);
+                        window.updateDestMarkerLeaflet(wh.lat, wh.lng, text);
                     }
-                    window.updateDestMarker(wh.lat, wh.lng, text);
                 }, 250);
             }
         } catch(e) {}
     };
+
+    // Auto setup autocomplete on load
+    setTimeout(setupGoogleAutocomplete, 400);
+    document.addEventListener('livewire:navigated', () => {
+        setTimeout(setupGoogleAutocomplete, 400);
+    });
 </script>
 @endscript
 

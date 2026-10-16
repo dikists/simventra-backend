@@ -11,6 +11,36 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
+    @if(config('services.google.maps_api_key'))
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google.maps_api_key') }}&libraries=places&language=id"></script>
+    <script>
+        window.GOOGLE_MAPS_KEY = "{{ config('services.google.maps_api_key') }}";
+    </script>
+    @endif
+    <style>
+        /* Google Places Autocomplete dropdown z-index fix */
+        .pac-container {
+            z-index: 100005 !important;
+            border-radius: 8px !important;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22) !important;
+            border: 1px solid #cbd5e1 !important;
+            font-family: inherit !important;
+            margin-top: 4px !important;
+        }
+        .pac-item {
+            padding: 8px 12px !important;
+            font-size: 13px !important;
+            cursor: pointer !important;
+            border-top: 1px solid #f1f5f9 !important;
+        }
+        .pac-item:hover, .pac-item-selected {
+            background-color: #eff6ff !important;
+        }
+        .pac-matched {
+            font-weight: 700 !important;
+            color: #2563eb !important;
+        }
+    </style>
     <script>
         // Restore desktop collapsed sidebar early to prevent flicker
         if (localStorage.getItem('simventra_sidebar_collapsed') === 'true' && window.innerWidth > 768) {
@@ -49,6 +79,27 @@
             </svg>
             <span>Dashboard</span>
         </a>
+
+        @role('Sopir')
+        <div class="sidebar-section">Aplikasi Driver</div>
+        <a href="{{ route('driver.app') }}"
+           class="sidebar-link" style="background:rgba(37,99,235,0.08);color:#2563eb;font-weight:700;border:1px solid rgba(37,99,235,0.2);margin-bottom:6px;">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+            </svg>
+            <span>App Driver (Kirim GPS)</span>
+            <span class="sidebar-badge" style="background:#10b981;color:#fff;font-weight:800;font-size:10px;">LIVE</span>
+        </a>
+        @else
+        <a href="{{ route('driver.app') }}" target="_blank"
+           class="sidebar-link" style="color:#64748b;font-size:12.5px;">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+            </svg>
+            <span>Buka App Driver (Sopir)</span>
+            <span class="sidebar-badge" style="background:#f1f5f9;color:#64748b;font-weight:600;font-size:10px;">HP</span>
+        </a>
+        @endrole
 
         @canany(['view employees', 'create employees'])
         <div class="sidebar-section">Personalia</div>

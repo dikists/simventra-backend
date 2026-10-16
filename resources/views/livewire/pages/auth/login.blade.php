@@ -20,6 +20,12 @@ new #[Layout('layouts.guest')] class extends Component
 
         Session::regenerate();
 
+        $user = auth()->user();
+        if ($user && $user->hasRole('Sopir')) {
+            $this->redirect(route('driver.app', absolute: false), navigate: false);
+            return;
+        }
+
         $this->redirectIntended(default: route('dashboard', absolute: false), navigate: true);
     }
 }; ?>

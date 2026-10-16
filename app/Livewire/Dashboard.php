@@ -69,11 +69,24 @@ class Dashboard extends Component
         $stats['on_trip_count']      = $activeTrips->count();
         $stats['silent_trips_count'] = count($silentTrips);
 
+        $driverAssignment = null;
+        if (auth()->check()) {
+            $matchedDriver = \App\Services\DriverMatchingService::findDriverForUser(auth()->user());
+            if ($matchedDriver) {
+                $driverAssignment = \App\Models\VehicleAssignment::with('vehicle')
+                    ->where('driver_id', $matchedDriver->id)
+                    ->whereIn('status', ['assigned', 'confirmed', 'on_trip'])
+                    ->latest()
+                    ->first();
+            }
+        }
+
         return view('livewire.dashboard', compact(
             'stats',
             'recentExpiringVehicleDocs',
             'recentExpiringEmployeeDocs',
-            'silentTrips'
+            'silentTrips',
+            'driverAssignment'
         ))->layout('layouts.app', ['title' => 'Dashboard']);
     }
 }

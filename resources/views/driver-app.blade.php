@@ -115,6 +115,35 @@
 
 <div id="root"></div>
 
+@php
+    $sessionUser = auth()->user();
+    $sessionToken = null;
+    $sessionDriver = null;
+    $isAdminOrDev = false;
+    if ($sessionUser) {
+        $isAdminOrDev = $sessionUser->hasAnyRole(['Super Admin', 'Admin', 'Manajer Operasional']);
+        $matchedDriver = \App\Services\DriverMatchingService::findDriverForUser($sessionUser);
+        if ($matchedDriver) {
+            $sessionToken = $sessionUser->createToken('driver-web-session')->plainTextToken;
+            $sessionDriver = [
+                'id'              => $matchedDriver->id,
+                'employee_number' => $matchedDriver->employee_number,
+                'name'            => $matchedDriver->name,
+                'type'            => $matchedDriver->type,
+                'sim_type'        => $matchedDriver->sim_type,
+                'sim_number'      => $matchedDriver->sim_number,
+                'sim_expiry'      => $matchedDriver->sim_expiry?->format('Y-m-d'),
+                'photo_url'       => $matchedDriver->photo ? \Illuminate\Support\Facades\Storage::disk(config('filesystems.default_public_disk'))->url($matchedDriver->photo) : null,
+            ];
+        }
+    }
+@endphp
+<script>
+    window.__SESSION_DRIVER_TOKEN__ = @json($sessionToken);
+    window.__SESSION_DRIVER_DATA__  = @json($sessionDriver);
+    window.__IS_ADMIN_OR_DEV__       = @json($isAdminOrDev);
+</script>
+
 @verbatim
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
@@ -156,9 +185,19 @@ function playNotificationSound() {
 }
 
 function DriverApp() {
-    // Auth State
-    const [token, setToken] = useState(() => localStorage.getItem('simventra_driver_token') || '');
+    // Auth State (auto-detect Laravel web session if available)
+    const [token, setToken] = useState(() => {
+        if (window.__SESSION_DRIVER_TOKEN__) {
+            localStorage.setItem('simventra_driver_token', window.__SESSION_DRIVER_TOKEN__);
+            return window.__SESSION_DRIVER_TOKEN__;
+        }
+        return localStorage.getItem('simventra_driver_token') || '';
+    });
     const [driver, setDriver] = useState(() => {
+        if (window.__SESSION_DRIVER_DATA__) {
+            localStorage.setItem('simventra_driver_data', JSON.stringify(window.__SESSION_DRIVER_DATA__));
+            return window.__SESSION_DRIVER_DATA__;
+        }
         const saved = localStorage.getItem('simventra_driver_data');
         return saved ? JSON.parse(saved) : null;
     });
@@ -178,7 +217,23 @@ function DriverApp() {
 
     // GPS & Tracking State
     const [gpsActive, setGpsActive] = useState(false);
-    const [isSimulated, setIsSimulated] = useState(true);
+    const [devModeEnabled, setDevModeEnabled] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('demo') === '1' || params.get('dev') === '1') return true;
+        const saved = localStorage.getItem('simventra_driver_dev_mode');
+        if (saved !== null) return saved === 'true';
+        return Boolean(window.__IS_ADMIN_OR_DEV__);
+    });
+    const [isSimulated, setIsSimulated] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('demo') === '1') return true;
+        if (params.get('real') === '1') return false;
+        const saved = localStorage.getItem('simventra_driver_dev_mode');
+        if (saved === 'false') return false;
+        if (saved === 'true') return true;
+        return Boolean(window.__IS_ADMIN_OR_DEV__);
+    });
+    const [geoError, setGeoError] = useState('');
     const [routeIndex, setRouteIndex] = useState(0);
     const [currentCoords, setCurrentCoords] = useState(SIMULATED_ROUTE[0]);
     const [pingCount, setPingCount] = useState(0);
@@ -220,6 +275,8 @@ function DriverApp() {
     const handleLogout = () => {
         localStorage.removeItem('simventra_driver_token');
         localStorage.removeItem('simventra_driver_data');
+        window.__SESSION_DRIVER_TOKEN__ = null;
+        window.__SESSION_DRIVER_DATA__ = null;
         setToken('');
         setDriver(null);
         setTask(null);
@@ -360,6 +417,7 @@ function DriverApp() {
             } else if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     (pos) => {
+                        setGeoError('');
                         const coords = {
                             lat: pos.coords.latitude,
                             lng: pos.coords.longitude,
@@ -368,9 +426,18 @@ function DriverApp() {
                         setCurrentCoords(coords);
                         sendCoords(coords);
                     },
-                    (err) => console.log('Geolocation error:', err),
-                    { enableHighAccuracy: true }
+                    (err) => {
+                        console.warn('Geolocation error:', err.message);
+                        if (err.code === 1) {
+                            setGeoError('Izin akses GPS belum diberikan pada browser. Mohon izinkan lokasi di HP/browser.');
+                        } else if (err.code === 2) {
+                            setGeoError('Sinyal GPS tidak ditemukan. Pastikan GPS/Lokasi perangkat sudah aktif.');
+                        }
+                    },
+                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 3000 }
                 );
+            } else {
+                setGeoError('Browser ini tidak memiliki fitur sensor GPS.');
             }
         }, 4000);
 
@@ -496,9 +563,14 @@ function DriverApp() {
                             <div style={{ fontSize: '11px', color: '#94a3b8' }}>{driver?.employee_number} &bull; SIM {driver?.sim_type || 'B1'}</div>
                         </div>
                     </div>
-                    <button onClick={handleLogout} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', padding: '6px 12px', borderRadius: '10px', fontSize: '11.5px', fontWeight: '600', cursor: 'pointer' }}>
-                        Keluar
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <a href="/dashboard" style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '6px 12px', borderRadius: '10px', fontSize: '11.5px', fontWeight: '600', textDecoration: 'none' }}>
+                            Web Portal
+                        </a>
+                        <button onClick={handleLogout} style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', padding: '6px 10px', borderRadius: '10px', fontSize: '11.5px', fontWeight: '600', cursor: 'pointer' }}>
+                            Keluar
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -589,12 +661,23 @@ function DriverApp() {
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <span className="pulsing-dot"></span>
-                                        <span style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '1px', color: '#10b981' }}>
-                                            GPS AKTIF STREAMING
-                                        </span>
+                                        <div>
+                                            <div style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '1px', color: '#10b981' }}>
+                                                GPS AKTIF STREAMING
+                                            </div>
+                                            <div style={{ fontSize: '10px', color: '#94a3b8' }}>
+                                                {isSimulated ? 'Mode Demo / Simulasi' : 'Sensor GPS HP Nyata'}
+                                            </div>
+                                        </div>
                                     </div>
                                     <span style={{ fontSize: '11px', color: '#94a3b8' }}>{pingCount} Ping Terkirim</span>
                                 </div>
+
+                                {geoError && !isSimulated && (
+                                    <div style={{ background: '#7f1d1d', border: '1px solid #ef4444', color: '#fecaca', padding: '10px 12px', borderRadius: '10px', fontSize: '11.5px', marginBottom: '14px', lineHeight: '1.4' }}>
+                                        ⚠️ {geoError}
+                                    </div>
+                                )}
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', textAlign: 'center', marginBottom: '16px' }}>
                                     <div style={{ background: 'rgba(255,255,255,0.05)', padding: '14px', borderRadius: '14px' }}>
@@ -612,18 +695,38 @@ function DriverApp() {
                                 </div>
 
                                 <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', marginBottom: '14px', fontFamily: 'monospace' }}>
-                                    Lat: {currentCoords.lat.toFixed(4)} &bull; Lng: {currentCoords.lng.toFixed(4)}
+                                    Lat: {currentCoords.lat ? currentCoords.lat.toFixed(5) : '-'} &bull; Lng: {currentCoords.lng ? currentCoords.lng.toFixed(5) : '-'}
                                 </div>
 
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.05)', padding: '8px 12px', borderRadius: '10px', marginBottom: '16px', fontSize: '11.5px' }}>
-                                    <span>Mode: <strong>{isSimulated ? 'Simulasi Tol Jkt-Bdg' : 'Sensor GPS Nyata'}</strong></span>
-                                    <button
-                                        onClick={() => setIsSimulated(!isSimulated)}
-                                        style={{ background: '#2563eb', border: 'none', color: '#fff', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}
-                                    >
-                                        Ganti Mode
-                                    </button>
-                                </div>
+                                {/* DEVELOPER / DEMO MODE BOX (Hanya tampil jika Mode Demo aktif) */}
+                                {devModeEnabled && (
+                                    <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px dashed #f59e0b', borderRadius: '12px', padding: '10px 12px', marginBottom: '16px', fontSize: '11.5px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                            <span style={{ fontWeight: '800', color: '#f59e0b' }}>🛠️ Mode Demo / Pengembang</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setDevModeEnabled(false);
+                                                    setIsSimulated(false);
+                                                    localStorage.setItem('simventra_driver_dev_mode', 'false');
+                                                }}
+                                                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '10.5px', cursor: 'pointer', textDecoration: 'underline' }}
+                                            >
+                                                Sembunyikan
+                                            </button>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <span style={{ color: '#cbd5e1' }}>Sumber: <strong style={{ color: isSimulated ? '#f59e0b' : '#10b981' }}>{isSimulated ? 'Simulasi Tol Jkt-Bdg' : 'Sensor GPS Nyata'}</strong></span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsSimulated(!isSimulated)}
+                                                style={{ background: isSimulated ? '#f59e0b' : '#2563eb', border: 'none', color: isSimulated ? '#000' : '#fff', fontWeight: '700', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}
+                                            >
+                                                Ganti ke {isSimulated ? 'GPS Nyata' : 'Simulasi'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <button
                                     onClick={() => {
@@ -655,6 +758,25 @@ function DriverApp() {
                         </div>
                     </div>
                 )}
+
+                <div style={{ textAlign: 'center', padding: '24px 0 12px', fontSize: '11px', color: '#94a3b8' }}>
+                    <div>SIMVENTRA Driver &bull; PT Rajawali Handal Logistik</div>
+                    {!devModeEnabled && (
+                        <div style={{ marginTop: '6px' }}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setDevModeEnabled(true);
+                                    localStorage.setItem('simventra_driver_dev_mode', 'true');
+                                }}
+                                style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '10.5px', cursor: 'pointer', opacity: 0.6 }}
+                                title="Klik untuk membuka simulasi pergerakan demo"
+                            >
+                                ⚙️ Mode Demo (Admin/Testing)
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* COMPLETE ASSIGNMENT MODAL */}

@@ -3,13 +3,74 @@
     <div class="page-header">
         <div>
             <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Selamat datang kembali, <strong>{{ auth()->user()->name }}</strong> · {{ now()->translatedFormat('l, d F Y') }}</p>
+            <p class="page-subtitle">Selamat datang kembali, <strong>{{ auth()->user()?->name ?? 'Pengguna' }}</strong> · {{ now()->translatedFormat('l, d F Y') }}</p>
         </div>
         <a href="{{ route('reminders.index') }}" class="btn btn-primary">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
             Reminder Dokumen
         </a>
     </div>
+
+    @role('Sopir')
+    <!-- Dedicated Driver Hero Card -->
+    <div style="background:linear-gradient(135deg, #1e293b 0%, #0f172a 100%);color:#fff;border-radius:20px;padding:24px 28px;margin-bottom:24px;box-shadow:0 12px 30px -5px rgba(15,23,42,0.3);border:1px solid #334155;position:relative;overflow:hidden;">
+        <!-- Background decoration glow -->
+        <div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;background:rgba(37,99,235,0.2);border-radius:50%;filter:blur(30px);pointer-events:none;"></div>
+        
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;position:relative;z-index:1;">
+            <div style="display:flex;align-items:center;gap:18px;">
+                <div style="width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 8px 18px rgba(37,99,235,0.4);flex-shrink:0;">
+                    🚚
+                </div>
+                <div>
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <h2 style="margin:0;font-size:18px;font-weight:800;color:#fff;">
+                            Portal Khusus Pengemudi Armada
+                        </h2>
+                        <span style="background:#10b981;color:#fff;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:0.5px;">
+                            APP DRIVER READY
+                        </span>
+                    </div>
+                    <p style="margin:6px 0 0 0;font-size:13.5px;color:#94a3b8;line-height:1.5;">
+                        Untuk melihat tugas perjalanan, konfirmasi armada, dan mengirim koordinat lokasi GPS secara realtime, silakan buka <strong>Aplikasi Sopir</strong>.
+                    </p>
+                </div>
+            </div>
+
+            <a href="{{ route('driver.app') }}"
+               class="btn"
+               style="background:linear-gradient(135deg, #10b981 0%, #059669 100%);color:#fff;border:none;font-weight:800;font-size:14px;padding:14px 24px;border-radius:12px;box-shadow:0 6px 20px rgba(16,185,129,0.4);display:inline-flex;align-items:center;gap:10px;text-decoration:none;">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                <span>Buka Aplikasi Driver & Kirim GPS Realtime &rarr;</span>
+            </a>
+        </div>
+
+        @if(isset($driverAssignment) && $driverAssignment)
+        <!-- Active Trip preview -->
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;position:relative;z-index:1;">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span style="background:#0f172a;color:#fff;font-family:monospace;font-weight:800;font-size:13px;padding:4px 10px;border-radius:6px;border:1px solid #475569;">
+                    {{ strtoupper($driverAssignment->vehicle?->license_plate ?? '-') }}
+                </span>
+                <span style="font-size:13px;color:#e2e8f0;font-weight:600;">
+                    {{ $driverAssignment->vehicle?->brand }} {{ $driverAssignment->vehicle?->model }}
+                </span>
+                <span style="font-size:12px;color:#94a3b8;">&bull; Tujuan: <strong style="color:#38bdf8;">{{ $driverAssignment->destination ?: 'Tugas Baru Tersedia' }}</strong></span>
+            </div>
+            <div>
+                <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:700;background:{{ $driverAssignment->status === 'on_trip' ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.2)' }};color:{{ $driverAssignment->status === 'on_trip' ? '#c084fc' : '#60a5fa' }};border:1px solid {{ $driverAssignment->status === 'on_trip' ? 'rgba(168,85,247,0.3)' : 'rgba(59,130,246,0.3)' }};">
+                    <span style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
+                    {{ $driverAssignment->status === 'on_trip' ? 'Sedang di Perjalanan (Kirim GPS Aktif)' : 'Tugas Baru Menunggu Anda' }}
+                </span>
+            </div>
+        </div>
+        @else
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);font-size:12px;color:#94a3b8;">
+            ℹ️ Belum ada penugasan baru. Anda tetap dapat membuka Aplikasi Sopir untuk bersiap atau standby menerima tugas.
+        </div>
+        @endif
+    </div>
+    @endrole
 
     <!-- Control Tower Fleet GPS Alert -->
     @if(isset($silentTrips) && count($silentTrips) > 0)

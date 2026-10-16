@@ -15,6 +15,9 @@
                     <span style="width:8px;height:8px;border-radius:50%;background:#10b981;animation:pulse 1.5s infinite;"></span>
                     LIVE STREAMING
                 </span>
+                <span id="map-engine-badge" style="display:inline-flex;align-items:center;padding:3px 10px;background:#e0f2fe;border:1px solid #bae6fd;border-radius:20px;font-size:11.5px;font-weight:700;color:#0369a1;">
+                    Google Maps
+                </span>
             </div>
             <p class="page-subtitle">Pantau posisi koordinat, kecepatan, dan rute armada secara real-time dari sinyal GPS aplikasi sopir.</p>
         </div>
@@ -173,46 +176,146 @@
 
 @script
 <script>
-    let map;
-    let markers = {};
-    let destMarkers = {};
-    let routePolylines = {};
-    let trailPolylines = {};
+    let gMap = null;
+    let leafletMap = null;
+    let googleMarkers = {};
+    let googleInfoWindows = {};
+    let googleDestMarkers = {};
+    let googleRoutePolylines = {};
+    let googleTrailPolylines = {};
+    let leafletMarkers = {};
+    let leafletDestMarkers = {};
+    let leafletRoutePolylines = {};
+    let leafletTrailPolylines = {};
+    let currentOpenInfoWindow = null;
     let fleetDataMap = {};
-    // Cache reverse geocode results to avoid repeated requests for same coordinates
-    const geocodeCache = {};
-    const WAREHOUSE_COORDS = [{{ (float) $warehouse->latitude }}, {{ (float) $warehouse->longitude }}];
+    let geocodeCache = {};
+    let fetchIntervalId = null;
+
+    const warehouseLat = {{ (float) $warehouse->latitude }};
+    const warehouseLng = {{ (float) $warehouse->longitude }};
+    const warehouseName = @json($warehouse->name);
+    const warehouseAddress = @json($warehouse->address);
+
+    function isGoogleReady() {
+        return typeof window.google !== 'undefined' && 
+               typeof window.google.maps !== 'undefined' && 
+               typeof window.google.maps.Map === 'function';
+    }
 
     window.initMap = function() {
         const mapContainer = document.getElementById('fleet-map');
         if (!mapContainer) return;
-        if (map) return;
 
-        map = L.map('fleet-map', {
-            center: WAREHOUSE_COORDS,
-            zoom: 11,
-            zoomControl: true
-        });
+        const badgeEl = document.getElementById('map-engine-badge');
 
-        // OpenStreetMap tile layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
+        if (isGoogleReady()) {
+            if (badgeEl) {
+                badgeEl.innerText = 'Google Maps';
+                badgeEl.style.background = '#e0f2fe';
+                badgeEl.style.color = '#0369a1';
+                badgeEl.style.borderColor = '#bae6fd';
+            }
 
-        // Warehouse marker
-        const warehouseIcon = L.divIcon({
-            className: 'warehouse-marker',
-            html: '<div style="width:28px;height:28px;border-radius:8px;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;box-shadow:0 3px 8px rgba(245,158,11,0.5);border:2px solid #fff;">🏢</div>',
-            iconSize: [28, 28],
-            iconAnchor: [14, 14]
-        });
-        L.marker(WAREHOUSE_COORDS, { icon: warehouseIcon })
-            .addTo(map)
-            .bindPopup('<b>{{ addslashes($warehouse->name) }}</b><br>{{ addslashes($warehouse->address) }}');
+            if (leafletMap) {
+                try { leafletMap.remove(); } catch(e) {}
+                leafletMap = null;
+            }
+
+            if (!gMap || gMap.getDiv() !== mapContainer) {
+                mapContainer.innerHTML = '';
+                gMap = new google.maps.Map(mapContainer, {
+                    center: { lat: warehouseLat, lng: warehouseLng },
+                    zoom: 12,
+                    mapTypeControl: true,
+                    mapTypeControlOptions: {
+                        style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
+                        position: google.maps.ControlPosition.TOP_RIGHT
+                    },
+                    streetViewControl: true,
+                    fullscreenControl: true,
+                    gestureHandling: 'greedy'
+                });
+
+                // Warehouse marker
+                const whMarker = new google.maps.Marker({
+                    position: { lat: warehouseLat, lng: warehouseLng },
+                    map: gMap,
+                    title: warehouseName,
+                    icon: {
+                        url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+                                <rect width="36" height="36" rx="9" fill="#f59e0b" stroke="#ffffff" stroke-width="2.5"/>
+                                <text x="18" y="24" font-size="19" text-anchor="middle" fill="#ffffff">🏢</text>
+                            </svg>
+                        `),
+                        scaledSize: new google.maps.Size(36, 36),
+                        anchor: new google.maps.Point(18, 18)
+                    }
+                });
+
+                const whInfo = new google.maps.InfoWindow({
+                    content: `<div style="font-family:'Plus Jakarta Sans',sans-serif;padding:6px;max-width:240px;"><b style="color:#1e293b;font-size:13px;">${warehouseName}</b><br><span style="color:#64748b;font-size:12px;margin-top:2px;display:block;">${warehouseAddress}</span></div>`
+                });
+                whMarker.addListener('click', () => {
+                    if (currentOpenInfoWindow) currentOpenInfoWindow.close();
+                    whInfo.open(gMap, whMarker);
+                    currentOpenInfoWindow = whInfo;
+                });
+            }
+        } else {
+            // Fallback Leaflet
+            if (badgeEl) {
+                badgeEl.innerText = 'OpenStreetMap';
+                badgeEl.style.background = '#fef3c7';
+                badgeEl.style.color = '#92400e';
+                badgeEl.style.borderColor = '#fde68a';
+            }
+
+            if (typeof L === 'undefined') {
+                console.warn('Leaflet & Google Maps belum dimuat.');
+                return;
+            }
+
+            if (leafletMap) {
+                try {
+                    if (leafletMap._container !== mapContainer) {
+                        leafletMap.remove();
+                        leafletMap = null;
+                    }
+                } catch(e) {
+                    leafletMap = null;
+                }
+            }
+
+            if (!leafletMap) {
+                mapContainer.innerHTML = '';
+                leafletMap = L.map('fleet-map', {
+                    center: [warehouseLat, warehouseLng],
+                    zoom: 11,
+                    zoomControl: true
+                });
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(leafletMap);
+
+                const warehouseIcon = L.divIcon({
+                    className: 'warehouse-marker',
+                    html: '<div style="width:28px;height:28px;border-radius:8px;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;box-shadow:0 3px 8px rgba(245,158,11,0.5);border:2px solid #fff;">🏢</div>',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+                L.marker([warehouseLat, warehouseLng], { icon: warehouseIcon })
+                    .addTo(leafletMap)
+                    .bindPopup(`<b>${warehouseName}</b><br>${warehouseAddress}`);
+            }
+        }
 
         fetchLocations();
-        setInterval(fetchLocations, 4000);
+        if (fetchIntervalId) clearInterval(fetchIntervalId);
+        fetchIntervalId = setInterval(fetchLocations, 4000);
     };
 
     window.fetchLocations = async function() {
@@ -228,21 +331,44 @@
     };
 
     /**
-     * Reverse geocode lat/lng to a human-readable address using Nominatim.
-     * Results are cached per rounded coordinate pair (4 decimal places ≈ 11m precision).
+     * Reverse geocode lat/lng using Google Maps Geocoder (with Nominatim fallback).
      */
     async function reverseGeocode(lat, lng) {
         const key = `${parseFloat(lat).toFixed(4)},${parseFloat(lng).toFixed(4)}`;
         if (geocodeCache[key]) return geocodeCache[key];
 
+        if (isGoogleReady()) {
+            return new Promise((resolve) => {
+                const geocoder = new google.maps.Geocoder();
+                geocoder.geocode({ location: { lat: parseFloat(lat), lng: parseFloat(lng) } }, (results, status) => {
+                    if (status === 'OK' && results && results[0]) {
+                        const full = results[0].formatted_address;
+                        let short = full;
+                        if (results[0].address_components) {
+                            const comps = results[0].address_components;
+                            const route = comps.find(c => c.types.includes('route'))?.short_name;
+                            const subloc = comps.find(c => c.types.includes('sublocality_level_1') || c.types.includes('sublocality') || c.types.includes('administrative_area_level_4'))?.short_name;
+                            const locality = comps.find(c => c.types.includes('administrative_area_level_2') || c.types.includes('locality'))?.short_name;
+                            const parts = [route, subloc, locality].filter(Boolean);
+                            if (parts.length > 0) short = parts.join(', ');
+                        }
+                        geocodeCache[key] = { label: short, full: full };
+                        resolve(geocodeCache[key]);
+                    } else {
+                        const fallback = { label: `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}`, full: null };
+                        geocodeCache[key] = fallback;
+                        resolve(fallback);
+                    }
+                });
+            });
+        }
+
         try {
             const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=id`;
             const res = await fetch(url, { headers: { 'Accept-Language': 'id' } });
             const data = await res.json();
-
             if (data && data.address) {
                 const a = data.address;
-                // Build a short, readable description (street + suburb/village/city)
                 const parts = [
                     a.road || a.pedestrian || a.footway,
                     a.suburb || a.village || a.town || a.city_district,
@@ -252,12 +378,38 @@
                 geocodeCache[key] = { label, full: data.display_name || label };
                 return geocodeCache[key];
             }
-        } catch (e) {
-            // Silently fail; caller will show fallback
-        }
+        } catch(e) {}
+
         const fallback = { label: `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}`, full: null };
         geocodeCache[key] = fallback;
         return fallback;
+    }
+
+    function getVehicleGoogleIcon(isHalal) {
+        const color = isHalal ? '#10b981' : '#2563eb';
+        return {
+            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
+                    <circle cx="17" cy="17" r="15" fill="${color}" fill-opacity="0.25" stroke="${color}" stroke-width="2"/>
+                    <circle cx="17" cy="17" r="8.5" fill="${color}" stroke="#ffffff" stroke-width="2.5"/>
+                </svg>
+            `),
+            scaledSize: new google.maps.Size(34, 34),
+            anchor: new google.maps.Point(17, 17)
+        };
+    }
+
+    function getDestGoogleIcon() {
+        return {
+            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
+                    <rect width="34" height="34" rx="8" fill="#10b981" stroke="#ffffff" stroke-width="2"/>
+                    <text x="17" y="23" font-size="18" text-anchor="middle" fill="#ffffff">🏁</text>
+                </svg>
+            `),
+            scaledSize: new google.maps.Size(34, 34),
+            anchor: new google.maps.Point(17, 17)
+        };
     }
 
     function updateFleetUI(fleets) {
@@ -285,22 +437,9 @@
         fleetDataMap = {};
 
         fleets.forEach(fleet => {
-            const lat = fleet.latitude;
-            const lng = fleet.longitude;
+            const lat = parseFloat(fleet.latitude);
+            const lng = parseFloat(fleet.longitude);
             fleetDataMap[fleet.assignment_id] = fleet;
-
-            // 1. Update/Add Leaflet Vehicle Marker
-            const markerClass = fleet.is_halal ? 'halal-marker' : '';
-            const customIcon = L.divIcon({
-                className: markerClass,
-                html: `
-                    <div class="vehicle-marker-pulse">
-                        <div class="vehicle-marker-inner"></div>
-                    </div>
-                `,
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
-            });
 
             const popupId = `popup-loc-${fleet.assignment_id}`;
             const popupHtml = `
@@ -318,7 +457,7 @@
                         <div id="${popupId}" style="color:#1e293b;font-weight:600;line-height:1.4;">
                             <span style="color:#94a3b8;font-style:italic;">Memuat...</span>
                         </div>
-                        <div style="font-size:10px;color:#94a3b8;margin-top:2px;font-family:monospace;">${parseFloat(lat).toFixed(6)}, ${parseFloat(lng).toFixed(6)}</div>
+                        <div style="font-size:10px;color:#94a3b8;margin-top:2px;font-family:monospace;">${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
                     </div>
                     <div style="padding:6px 8px;background:#f1f5f9;border-radius:6px;font-size:11.5px;margin-bottom:6px;">
                         <div>🏁 <strong>Tujuan:</strong> ${fleet.destination}</div>
@@ -331,73 +470,178 @@
                 </div>
             `;
 
-            if (markers[fleet.assignment_id]) {
-                markers[fleet.assignment_id].setLatLng([lat, lng]);
-                markers[fleet.assignment_id].getPopup().setContent(popupHtml);
-            } else if (map) {
-                const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
-                marker.bindPopup(popupHtml);
-                marker.on('popupopen', () => fillGeocodedLocation(popupId, lat, lng));
-                markers[fleet.assignment_id] = marker;
-            }
+            const destPopup = `
+                <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;padding:4px;">
+                    <strong style="color:#065f46;">🏁 Titik Tujuan (${fleet.license_plate}):</strong><br>
+                    <span style="color:#334155;margin-top:2px;display:block;">${fleet.destination}</span>
+                </div>
+            `;
 
-            // 2. Add/Update Historical Trail Polyline (Jejak GPS riil)
-            if (fleet.trail && fleet.trail.length > 0 && map) {
-                const trailCoords = [WAREHOUSE_COORDS, ...fleet.trail, [lat, lng]];
-                if (trailPolylines[fleet.assignment_id]) {
-                    trailPolylines[fleet.assignment_id].setLatLngs(trailCoords);
+            // ==========================================
+            // 1. GOOGLE MAPS RENDERING
+            // ==========================================
+            if (isGoogleReady() && gMap) {
+                // Vehicle Marker
+                if (googleMarkers[fleet.assignment_id]) {
+                    googleMarkers[fleet.assignment_id].setPosition({ lat, lng });
+                    if (googleInfoWindows[fleet.assignment_id]) {
+                        googleInfoWindows[fleet.assignment_id].setContent(popupHtml);
+                    }
                 } else {
-                    trailPolylines[fleet.assignment_id] = L.polyline(trailCoords, {
-                        color: '#6366f1',
-                        weight: 4,
-                        opacity: 0.85
-                    }).addTo(map);
+                    const marker = new google.maps.Marker({
+                        position: { lat, lng },
+                        map: gMap,
+                        icon: getVehicleGoogleIcon(fleet.is_halal),
+                        title: `${fleet.license_plate} - ${fleet.driver_name}`
+                    });
+                    const info = new google.maps.InfoWindow({ content: popupHtml });
+                    marker.addListener('click', () => {
+                        if (currentOpenInfoWindow) currentOpenInfoWindow.close();
+                        info.open(gMap, marker);
+                        currentOpenInfoWindow = info;
+                        fillGeocodedLocation(popupId, lat, lng);
+                        showLocationPanel(fleet, lat, lng);
+                    });
+                    googleMarkers[fleet.assignment_id] = marker;
+                    googleInfoWindows[fleet.assignment_id] = info;
+                }
+
+                // Trail polyline
+                if (fleet.trail && fleet.trail.length > 0) {
+                    const trailPoints = [
+                        { lat: warehouseLat, lng: warehouseLng },
+                        ...fleet.trail.map(c => ({ lat: parseFloat(c[0]), lng: parseFloat(c[1]) })),
+                        { lat, lng }
+                    ];
+                    if (googleTrailPolylines[fleet.assignment_id]) {
+                        googleTrailPolylines[fleet.assignment_id].setPath(trailPoints);
+                    } else {
+                        googleTrailPolylines[fleet.assignment_id] = new google.maps.Polyline({
+                            path: trailPoints,
+                            map: gMap,
+                            strokeColor: '#6366f1',
+                            strokeWeight: 4,
+                            strokeOpacity: 0.85
+                        });
+                    }
+                }
+
+                // Destination marker & planned line
+                if (fleet.destination_latitude && fleet.destination_longitude) {
+                    const destLat = parseFloat(fleet.destination_latitude);
+                    const destLng = parseFloat(fleet.destination_longitude);
+
+                    if (googleDestMarkers[fleet.assignment_id]) {
+                        googleDestMarkers[fleet.assignment_id].setPosition({ lat: destLat, lng: destLng });
+                    } else {
+                        const dMarker = new google.maps.Marker({
+                            position: { lat: destLat, lng: destLng },
+                            map: gMap,
+                            icon: getDestGoogleIcon(),
+                            title: `Tujuan: ${fleet.destination}`
+                        });
+                        const dInfo = new google.maps.InfoWindow({ content: destPopup });
+                        dMarker.addListener('click', () => {
+                            if (currentOpenInfoWindow) currentOpenInfoWindow.close();
+                            dInfo.open(gMap, dMarker);
+                            currentOpenInfoWindow = dInfo;
+                        });
+                        googleDestMarkers[fleet.assignment_id] = dMarker;
+                    }
+
+                    const plannedPath = [{ lat, lng }, { lat: destLat, lng: destLng }];
+                    if (googleRoutePolylines[fleet.assignment_id]) {
+                        googleRoutePolylines[fleet.assignment_id].setPath(plannedPath);
+                    } else {
+                        googleRoutePolylines[fleet.assignment_id] = new google.maps.Polyline({
+                            path: plannedPath,
+                            map: gMap,
+                            strokeColor: '#0d6efd',
+                            strokeOpacity: 0,
+                            icons: [{
+                                icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3 },
+                                offset: '0',
+                                repeat: '16px'
+                            }]
+                        });
+                    }
                 }
             }
 
-            // 3. Add/Update Destination Marker 🏁 and Planned Route Polyline
-            if (fleet.destination_latitude && fleet.destination_longitude && map) {
-                const destLat = parseFloat(fleet.destination_latitude);
-                const destLng = parseFloat(fleet.destination_longitude);
-
-                const destIcon = L.divIcon({
-                    className: 'dest-marker-div',
-                    html: '<div style="width:28px;height:28px;border-radius:8px;background:#10b981;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;box-shadow:0 3px 8px rgba(16,185,129,0.5);border:2px solid #fff;">🏁</div>',
-                    iconSize: [28, 28],
-                    iconAnchor: [14, 14]
+            // ==========================================
+            // 2. LEAFLET FALLBACK RENDERING
+            // ==========================================
+            if (leafletMap) {
+                const markerClass = fleet.is_halal ? 'halal-marker' : '';
+                const customIcon = L.divIcon({
+                    className: markerClass,
+                    html: `
+                        <div class="vehicle-marker-pulse">
+                            <div class="vehicle-marker-inner"></div>
+                        </div>
+                    `,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
                 });
 
-                const destPopup = `
-                    <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:12px;">
-                        <strong style="color:#065f46;">🏁 Titik Tujuan (${fleet.license_plate}):</strong><br>
-                        ${fleet.destination}
-                    </div>
-                `;
-
-                if (destMarkers[fleet.assignment_id]) {
-                    destMarkers[fleet.assignment_id].setLatLng([destLat, destLng]);
-                    destMarkers[fleet.assignment_id].getPopup().setContent(destPopup);
+                if (leafletMarkers[fleet.assignment_id]) {
+                    leafletMarkers[fleet.assignment_id].setLatLng([lat, lng]);
+                    leafletMarkers[fleet.assignment_id].getPopup().setContent(popupHtml);
                 } else {
-                    const dMarker = L.marker([destLat, destLng], { icon: destIcon }).addTo(map);
-                    dMarker.bindPopup(destPopup);
-                    destMarkers[fleet.assignment_id] = dMarker;
+                    const marker = L.marker([lat, lng], { icon: customIcon }).addTo(leafletMap);
+                    marker.bindPopup(popupHtml);
+                    marker.on('popupopen', () => fillGeocodedLocation(popupId, lat, lng));
+                    leafletMarkers[fleet.assignment_id] = marker;
                 }
 
-                // Planned route polyline (Dashed line from current position to destination)
-                const plannedLine = [[lat, lng], [destLat, destLng]];
-                if (routePolylines[fleet.assignment_id]) {
-                    routePolylines[fleet.assignment_id].setLatLngs(plannedLine);
-                } else {
-                    routePolylines[fleet.assignment_id] = L.polyline(plannedLine, {
-                        color: '#0d6efd',
-                        weight: 3,
-                        dashArray: '6, 8',
-                        opacity: 0.75
-                    }).addTo(map);
+                if (fleet.trail && fleet.trail.length > 0) {
+                    const trailCoords = [[warehouseLat, warehouseLng], ...fleet.trail, [lat, lng]];
+                    if (leafletTrailPolylines[fleet.assignment_id]) {
+                        leafletTrailPolylines[fleet.assignment_id].setLatLngs(trailCoords);
+                    } else {
+                        leafletTrailPolylines[fleet.assignment_id] = L.polyline(trailCoords, {
+                            color: '#6366f1',
+                            weight: 4,
+                            opacity: 0.85
+                        }).addTo(leafletMap);
+                    }
+                }
+
+                if (fleet.destination_latitude && fleet.destination_longitude) {
+                    const destLat = parseFloat(fleet.destination_latitude);
+                    const destLng = parseFloat(fleet.destination_longitude);
+
+                    const destIcon = L.divIcon({
+                        className: 'dest-marker-div',
+                        html: '<div style="width:28px;height:28px;border-radius:8px;background:#10b981;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;box-shadow:0 3px 8px rgba(16,185,129,0.5);border:2px solid #fff;">🏁</div>',
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    });
+
+                    if (leafletDestMarkers[fleet.assignment_id]) {
+                        leafletDestMarkers[fleet.assignment_id].setLatLng([destLat, destLng]);
+                        leafletDestMarkers[fleet.assignment_id].getPopup().setContent(destPopup);
+                    } else {
+                        const dMarker = L.marker([destLat, destLng], { icon: destIcon }).addTo(leafletMap);
+                        dMarker.bindPopup(destPopup);
+                        leafletDestMarkers[fleet.assignment_id] = dMarker;
+                    }
+
+                    const plannedLine = [[lat, lng], [destLat, destLng]];
+                    if (leafletRoutePolylines[fleet.assignment_id]) {
+                        leafletRoutePolylines[fleet.assignment_id].setLatLngs(plannedLine);
+                    } else {
+                        leafletRoutePolylines[fleet.assignment_id] = L.polyline(plannedLine, {
+                            color: '#0d6efd',
+                            weight: 3,
+                            dashArray: '6, 8',
+                            opacity: 0.75
+                        }).addTo(leafletMap);
+                    }
                 }
             }
 
-            // 4. Generate sidebar card item
+            // 3. Generate Sidebar Item
             const isSilent = fleet.is_silent;
             const cardBg = isSilent ? 'background:#fff1f2;border:1.5px solid #ef4444;' : 'background:#f8fafc;border:1px solid #e2e8f0;';
             const statusBadge = isSilent 
@@ -435,10 +679,6 @@
         });
 
         container.innerHTML = listHtml;
-
-        fleets.forEach(fleet => {
-            fillGeocodedLocation(`card-loc-${fleet.assignment_id}`, fleet.latitude, fleet.longitude);
-        });
     }
 
     async function fillGeocodedLocation(elementId, lat, lng) {
@@ -451,20 +691,39 @@
     }
 
     window.focusVehicle = function(lat, lng, assignmentId) {
-        if (!map) return;
         const fleet = fleetDataMap[assignmentId];
 
-        if (fleet && fleet.destination_latitude && fleet.destination_longitude) {
-            const destLat = parseFloat(fleet.destination_latitude);
-            const destLng = parseFloat(fleet.destination_longitude);
-            // Fit bounds to show both vehicle position and destination clearly!
-            map.fitBounds([[lat, lng], [destLat, destLng]], { padding: [60, 60] });
-        } else {
-            map.setView([lat, lng], 15);
-        }
+        if (isGoogleReady() && gMap) {
+            if (fleet && fleet.destination_latitude && fleet.destination_longitude) {
+                const destLat = parseFloat(fleet.destination_latitude);
+                const destLng = parseFloat(fleet.destination_longitude);
+                const bounds = new google.maps.LatLngBounds();
+                bounds.extend({ lat: parseFloat(lat), lng: parseFloat(lng) });
+                bounds.extend({ lat: destLat, lng: destLng });
+                gMap.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
+            } else {
+                gMap.panTo({ lat: parseFloat(lat), lng: parseFloat(lng) });
+                gMap.setZoom(16);
+            }
 
-        if (markers[assignmentId]) {
-            markers[assignmentId].openPopup();
+            if (googleMarkers[assignmentId] && googleInfoWindows[assignmentId]) {
+                if (currentOpenInfoWindow) currentOpenInfoWindow.close();
+                googleInfoWindows[assignmentId].open(gMap, googleMarkers[assignmentId]);
+                currentOpenInfoWindow = googleInfoWindows[assignmentId];
+                fillGeocodedLocation(`popup-loc-${assignmentId}`, lat, lng);
+            }
+        } else if (leafletMap) {
+            if (fleet && fleet.destination_latitude && fleet.destination_longitude) {
+                const destLat = parseFloat(fleet.destination_latitude);
+                const destLng = parseFloat(fleet.destination_longitude);
+                leafletMap.fitBounds([[lat, lng], [destLat, destLng]], { padding: [60, 60] });
+            } else {
+                leafletMap.setView([lat, lng], 15);
+            }
+
+            if (leafletMarkers[assignmentId]) {
+                leafletMarkers[assignmentId].openPopup();
+            }
         }
 
         showLocationPanel(fleet, lat, lng);
@@ -494,13 +753,41 @@
         if (panel) panel.style.display = 'none';
     };
 
-    // Inisialisasi saat Leaflet sudah dimuat
-    if (typeof L !== 'undefined') {
+    // Auto initialize map with Google Maps priority & polling
+    function bootstrapLiveMap(retryCount = 0) {
+        const hasGoogleKey = Boolean(window.GOOGLE_MAPS_KEY || "{{ config('services.google.maps_api_key') }}");
+
+        if (isGoogleReady()) {
+            initMap();
+            return;
+        }
+
+        // If Google Maps API key is configured, wait for Google Maps script to finish booting
+        if (hasGoogleKey && retryCount < 30) {
+            setTimeout(() => bootstrapLiveMap(retryCount + 1), 100);
+            return;
+        }
+
+        // Fallback to whatever is available (Leaflet)
         initMap();
-    } else {
-        window.addEventListener('load', initMap);
     }
-    document.addEventListener('livewire:navigated', initMap);
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        bootstrapLiveMap();
+    } else {
+        window.addEventListener('DOMContentLoaded', () => bootstrapLiveMap());
+    }
+
+    document.addEventListener('livewire:navigated', () => {
+        bootstrapLiveMap();
+    });
+
+    document.addEventListener('livewire:navigating', () => {
+        if (fetchIntervalId) {
+            clearInterval(fetchIntervalId);
+            fetchIntervalId = null;
+        }
+    });
 </script>
 @endscript
 </div>
