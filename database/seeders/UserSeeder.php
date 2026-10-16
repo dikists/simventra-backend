@@ -22,39 +22,25 @@ class UserSeeder extends Seeder
         );
         $admin->assignRole('Super Admin');
 
-        // Demo user HR
-        $hr = User::firstOrCreate(
-            ['email' => 'hr@simventra.id'],
+        // Demo user Dispatcher (Operasional Armada & Monitoring)
+        $dispatcher = User::firstOrCreate(
+            ['email' => 'dispatcher@simventra.id'],
             [
-                'name'     => 'Staff HR',
-                'username' => 'hr',
+                'name'     => 'Dispatcher Operasional',
+                'username' => 'dispatcher',
                 'phone'    => '08100000002',
                 'password' => Hash::make('Password@123'),
                 'is_active'=> true,
             ]
         );
-        $hr->assignRole('HR');
-
-        // Demo user Fleet
-        $fleet = User::firstOrCreate(
-            ['email' => 'fleet@simventra.id'],
-            [
-                'name'     => 'Fleet Officer',
-                'username' => 'fleet',
-                'phone'    => '08100000003',
-                'password' => Hash::make('Password@123'),
-                'is_active'=> true,
-            ]
-        );
-        $fleet->assignRole('Fleet Officer');
+        $dispatcher->assignRole('Dispatcher');
 
         $this->command->info('✅ Users seeded successfully!');
         $this->command->table(
             ['Username', 'Email', 'Role', 'Password'],
             [
                 ['admin', 'admin@simventra.id', 'Super Admin', 'Password@123'],
-                ['hr', 'hr@simventra.id', 'HR', 'Password@123'],
-                ['fleet', 'fleet@simventra.id', 'Fleet Officer', 'Password@123'],
+                ['dispatcher', 'dispatcher@simventra.id', 'Dispatcher', 'Password@123'],
             ]
         );
     }

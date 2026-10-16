@@ -28,7 +28,7 @@ class SendDocumentExpiryReminderJob implements ShouldQueue
         try {
             // Kirim ke semua user dengan role terkait
             $recipients = User::whereHas('roles', function ($q) {
-                $q->whereIn('name', ['Super Admin', 'HR', 'Fleet Officer', 'Maintenance Officer']);
+                $q->whereIn('name', ['Super Admin', 'Dispatcher']);
             })->where('is_active', true)->get();
 
             $subject = "⚠️ Reminder Dokumen: {$this->reminder->document_title}";

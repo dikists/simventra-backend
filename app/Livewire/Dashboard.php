@@ -12,6 +12,39 @@ class Dashboard extends Component
 {
     public function render()
     {
+        $user = auth()->user();
+
+        // Tampilan Khusus Pengemudi (Sopir)
+        if ($user && $user->hasRole('Sopir') && !$user->can('view vehicles')) {
+            $employee = $user->employee;
+            $activeAssignment = $employee ? \App\Models\VehicleAssignment::with(['vehicle'])
+                ->where('driver_id', $employee->id)
+                ->whereIn('status', ['assigned', 'confirmed', 'on_trip'])
+                ->latest()
+                ->first() : null;
+
+            $isGpsSilent = false;
+            $silenceMinutes = 0;
+            if ($activeAssignment && $activeAssignment->status === 'on_trip') {
+                $timeoutMinutes = (int) config('simventra.heartbeat.timeout_minutes', 5);
+                $refTime = $activeAssignment->last_ping_at ?? $activeAssignment->departure_time ?? $activeAssignment->updated_at;
+                if ($refTime && \Carbon\Carbon::instance($refTime)->isBefore(now()->subMinutes($timeoutMinutes))) {
+                    $isGpsSilent = true;
+                    $silenceMinutes = max(1, (int) abs(now()->diffInMinutes($refTime)));
+                }
+            }
+
+            $personalDocs = $employee ? $employee->documents()->orderBy('expiry_date')->get() : collect();
+
+            return view('livewire.dashboard-driver', compact(
+                'user',
+                'employee',
+                'activeAssignment',
+                'isGpsSilent',
+                'silenceMinutes',
+                'personalDocs'
+            ))->layout('layouts.app', ['title' => 'Dashboard Sopir']);
+        }
         $stats = [
             'total_employees' => Employee::active()->count(),
             'total_drivers'   => Employee::active()->drivers()->count(),

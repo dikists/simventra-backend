@@ -50,4 +50,17 @@ class User extends Authenticatable
     {
         return $this->hasOne(Employee::class);
     }
+
+    protected static function booted(): void
+    {
+        static::deleting(function (User $user) {
+            // Cascade hapus profil Employee / Sopir terkait (Satu Kesatuan)
+            $employee = Employee::where('user_id', $user->id)->first();
+            if ($employee) {
+                $employee->user_id = null;
+                $employee->saveQuietly();
+                $employee->delete();
+            }
+        });
+    }
 }

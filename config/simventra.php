@@ -94,7 +94,7 @@ return [
         'admin_email' => env('ADMIN_EMAIL', 'admin@simventra.id'),
 
         // Role yang menerima notifikasi dispatcher
-        'dispatcher_roles' => ['Super Admin', 'Fleet Officer', 'Control Tower Officer'],
+        'dispatcher_roles' => ['Super Admin', 'Dispatcher'],
     ],
 
     /*

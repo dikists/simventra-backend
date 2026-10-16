@@ -13,6 +13,25 @@
         @endcan
     </div>
 
+    <!-- Segment Tabs -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+        <button wire:click="$set('filterType', '')" 
+                class="btn btn-sm {{ $filterType === '' ? 'btn-primary' : 'btn-secondary' }}" 
+                style="border-radius:20px;padding:6px 16px;font-size:13px;font-weight:600;">
+            Semua Personalia ({{ $totalCount }})
+        </button>
+        <button wire:click="$set('filterType', 'sopir')" 
+                class="btn btn-sm {{ $filterType === 'sopir' ? 'btn-primary' : 'btn-secondary' }}" 
+                style="border-radius:20px;padding:6px 16px;font-size:13px;font-weight:600;{{ $filterType === 'sopir' ? 'background:#6f42c1;border-color:#6f42c1;' : '' }}">
+            🚚 Sopir Armada ({{ $driverCount }})
+        </button>
+        <button wire:click="$set('filterType', 'karyawan')" 
+                class="btn btn-sm {{ $filterType === 'karyawan' ? 'btn-primary' : 'btn-secondary' }}" 
+                style="border-radius:20px;padding:6px 16px;font-size:13px;font-weight:600;">
+            👔 Karyawan Kantor ({{ $staffCount }})
+        </button>
+    </div>
+
     <!-- Filter Bar -->
     <div class="filter-bar">
         <div class="search-box" style="flex:1;min-width:220px;">
@@ -41,7 +60,7 @@
                 <div class="card-title-icon" style="background:rgba(85,110,230,.1);">
                     <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="#556ee6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 </div>
-                <div class="card-title">Daftar Karyawan</div>
+                <div class="card-title">Daftar {{ $filterType === 'sopir' ? 'Sopir Armada' : ($filterType === 'karyawan' ? 'Karyawan Kantor' : 'Karyawan & Sopir') }}</div>
             </div>
             <div style="font-size:12.5px;color:#adb5bd;">{{ $employees->total() }} data ditemukan</div>
         </div>
@@ -52,7 +71,7 @@
                     <tr>
                         <th>
                             <button wire:click="sort('employee_number')" style="background:none;border:none;cursor:pointer;font:inherit;color:inherit;display:flex;align-items:center;gap:4px;">
-                                No. Karyawan
+                                No. ID
                                 @if($sortBy === 'employee_number')
                                 <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $sortDir === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7' }}"/></svg>
                                 @endif
@@ -67,6 +86,7 @@
                             </button>
                         </th>
                         <th>Tipe</th>
+                        <th>Akun Pengguna</th>
                         <th>Jabatan / Dept.</th>
                         <th>SIM Kadaluarsa</th>
                         <th>Status</th>
@@ -81,7 +101,7 @@
                         </td>
                         <td>
                             <div style="display:flex;align-items:center;gap:10px;">
-                                <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#556ee6,#6f42c1);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0;">
+                                <div style="width:36px;height:36px;border-radius:8px;background:{{ $employee->type === 'sopir' ? 'linear-gradient(135deg,#6f42c1,#4338ca)' : 'linear-gradient(135deg,#556ee6,#6f42c1)' }};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex-shrink:0;">
                                     {{ strtoupper(substr($employee->name, 0, 1)) }}
                                 </div>
                                 <div>
@@ -94,6 +114,18 @@
                             <span class="badge badge-{{ $employee->type === 'sopir' ? 'purple' : ($employee->type === 'mitra' ? 'teal' : 'blue') }}">
                                 {{ ucfirst($employee->type) }}
                             </span>
+                        </td>
+                        <td>
+                            @if($employee->user)
+                                <div style="font-size:12px;font-weight:700;color:#2563eb;">&#64;{{ $employee->user->username ?? $employee->user->name }}</div>
+                                <div style="margin-top:2px;">
+                                    <span class="badge badge-{{ $employee->user->is_active ? 'green' : 'gray' }}" style="font-size:9.5px;padding:1px 6px;">
+                                        {{ $employee->user->is_active ? 'User Aktif' : 'Non-Aktif' }}
+                                    </span>
+                                </div>
+                            @else
+                                <span class="badge badge-gray" style="font-size:10px;">Belum Ada Akun</span>
+                            @endif
                         </td>
                         <td>
                             <div style="font-size:13px;color:#495057;">{{ $employee->position ?? '–' }}</div>
@@ -137,10 +169,10 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7">
+                        <td colspan="8">
                             <div class="empty-state">
                                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                <div class="empty-state-title">Belum ada karyawan</div>
+                                <div class="empty-state-title">Belum ada karyawan / sopir</div>
                                 <div class="empty-state-desc">{{ $search ? 'Tidak ditemukan hasil untuk pencarian "' . $search . '"' : 'Mulai tambahkan data karyawan atau sopir' }}</div>
                                 @can('create employees')
                                 <a href="{{ route('employees.create') }}" class="btn btn-primary" style="display:inline-flex;">Tambah Karyawan</a>
@@ -163,17 +195,19 @@
     <!-- Delete Confirmation Modal -->
     @if($showDeleteModal)
     <div class="modal-overlay">
-        <div class="modal-box" style="max-width:420px;">
+        <div class="modal-box" style="max-width:440px;">
             <div class="modal-body" style="text-align:center;padding:36px 24px;">
                 <div style="width:60px;height:60px;border-radius:50%;background:rgba(244,106,106,.12);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
                     <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="#f46a6a"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 </div>
-                <h4 style="font-size:16px;font-weight:700;color:#343a40;margin-bottom:8px;">Hapus Data Karyawan?</h4>
-                <p style="font-size:13.5px;color:#74788d;">Data yang dihapus tidak dapat dipulihkan. Yakin ingin melanjutkan?</p>
+                <h4 style="font-size:16px;font-weight:700;color:#343a40;margin-bottom:8px;">Hapus Data Karyawan / Sopir?</h4>
+                <p style="font-size:13.5px;color:#74788d;line-height:1.5;">
+                    Menghapus data ini juga akan menghapus <strong>akun login pengguna</strong> dan seluruh <strong>berkas dokumen</strong> terkait secara otomatis (Satu Kesatuan).
+                </p>
             </div>
             <div class="modal-footer" style="justify-content:center;gap:12px;">
                 <button wire:click="$set('showDeleteModal', false)" class="btn btn-secondary">Batal</button>
-                <button wire:click="delete" class="btn btn-danger">Ya, Hapus</button>
+                <button wire:click="delete" class="btn btn-danger">Ya, Hapus Semua</button>
             </div>
         </div>
     </div>

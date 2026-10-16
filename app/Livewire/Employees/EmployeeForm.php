@@ -51,7 +51,7 @@ class EmployeeForm extends Component
     public bool $create_user_account = false;
     public ?int $user_id = null;
     public string $user_username = '';
-    public string $user_role = 'Sopir';
+    public string $user_role = 'Dispatcher';
     public string $user_password = '';
     public bool $user_is_active = true;
 
@@ -115,7 +115,7 @@ class EmployeeForm extends Component
             }
         } elseif ($value === 'karyawan') {
             if ($this->user_role === 'Sopir') {
-                $this->user_role = 'Staff';
+                $this->user_role = 'Dispatcher';
             }
         }
     }
@@ -209,6 +209,12 @@ class EmployeeForm extends Component
             unset($validated['photo']);
         }
 
+        // Sopir WAJIB memiliki akun pengguna untuk login aplikasi mobile (Satu Kesatuan)
+        if ($this->type === 'sopir') {
+            $this->create_user_account = true;
+            $this->user_role = 'Sopir';
+        }
+
         // --- PROSES PEMBUATAN / PEMBARUAN AKUN PENGGUNA OTOMATIS ---
         if ($this->create_user_account) {
             $userRules = [
@@ -216,13 +222,17 @@ class EmployeeForm extends Component
                 'user_username' => 'nullable|string|alpha_dash|max:50',
             ];
 
-            if (!$this->user_id || !empty($this->user_password)) {
-                $userRules['user_password'] = 'required|string|min:6';
+            if (!$this->user_id && empty($this->user_password)) {
+                // Berikan default password jika kosong saat membuat akun sopir/karyawan baru
+                $this->user_password = 'Password@123';
+            }
+
+            if (!empty($this->user_password)) {
+                $userRules['user_password'] = 'string|min:6';
             }
 
             $this->validate($userRules, [
                 'user_role.required'     => 'Peran (Role) akses wajib dipilih.',
-                'user_password.required' => 'Kata sandi wajib diisi untuk akun login baru.',
                 'user_password.min'      => 'Kata sandi minimal 6 karakter.',
             ]);
 
@@ -261,7 +271,7 @@ class EmployeeForm extends Component
                     'username'  => $targetUsername,
                     'email'     => $targetEmail,
                     'phone'     => $this->phone ?: null,
-                    'password'  => Hash::make($this->user_password ?: 'password123'),
+                    'password'  => Hash::make($this->user_password ?: 'Password@123'),
                     'is_active' => $this->user_is_active,
                 ]);
 
@@ -277,10 +287,63 @@ class EmployeeForm extends Component
 
         if ($this->isEdit && $this->employee) {
             $this->employee->update($validated);
+            $targetEmployee = $this->employee;
             session()->flash('success', "Data karyawan '{$this->employee->name}' berhasil diperbarui.");
         } else {
-            $employee = Employee::create($validated);
-            session()->flash('success', "Karyawan '{$employee->name}' berhasil ditambahkan" . ($this->create_user_account ? " beserta akun login pengguna." : "."));
+            $targetEmployee = Employee::create($validated);
+            session()->flash('success', "Karyawan '{$targetEmployee->name}' berhasil ditambahkan" . ($this->create_user_account ? " beserta akun login pengguna." : "."));
+        }
+
+        // --- SINKRONISASI DOKUMEN KE TABEL employee_documents (SATU SUMBER TERPUSAT) ---
+        // 1. Dokumen SIM
+        if (!empty($validated['sim_number']) || !empty($validated['sim_expiry'])) {
+            \App\Models\EmployeeDocument::updateOrCreate(
+                [
+                    'employee_id'   => $targetEmployee->id,
+                    'document_type' => 'sim',
+                ],
+                [
+                    'title'           => 'SIM ' . ($validated['sim_type'] ?? 'Pengemudi'),
+                    'document_number' => $validated['sim_number'] ?? null,
+                    'expiry_date'     => $validated['sim_expiry'] ?? null,
+                    'status'          => ($validated['sim_expiry'] && \Carbon\Carbon::parse($validated['sim_expiry'])->isPast()) ? 'expired' : 'active',
+                ]
+            );
+        } else {
+            // Jika dikosongkan, hapus entri sim lama agar tetap sinkron
+            \App\Models\EmployeeDocument::where('employee_id', $targetEmployee->id)->where('document_type', 'sim')->delete();
+        }
+
+        // 2. Dokumen SKCK
+        if (!empty($validated['has_skck'])) {
+            \App\Models\EmployeeDocument::updateOrCreate(
+                [
+                    'employee_id'   => $targetEmployee->id,
+                    'document_type' => 'skck',
+                ],
+                [
+                    'title'           => 'SKCK Kepolisian',
+                    'expiry_date'     => $validated['skck_expiry'] ?? null,
+                    'status'          => ($validated['skck_expiry'] && \Carbon\Carbon::parse($validated['skck_expiry'])->isPast()) ? 'expired' : 'active',
+                ]
+            );
+        } else {
+            \App\Models\EmployeeDocument::where('employee_id', $targetEmployee->id)->where('document_type', 'skck')->delete();
+        }
+
+        // 3. Dokumen KTP (NIK)
+        if (!empty($validated['nik'])) {
+            \App\Models\EmployeeDocument::updateOrCreate(
+                [
+                    'employee_id'   => $targetEmployee->id,
+                    'document_type' => 'ktp',
+                ],
+                [
+                    'title'           => 'KTP Elektronik',
+                    'document_number' => $validated['nik'],
+                    'status'          => 'active',
+                ]
+            );
         }
 
         $this->redirect(route('employees.index'), navigate: true);

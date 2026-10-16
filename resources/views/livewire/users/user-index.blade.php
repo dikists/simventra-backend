@@ -299,11 +299,11 @@
                     <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="#f46a6a"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 </div>
                 <h4 style="font-size:16px;font-weight:700;color:#343a40;margin-bottom:8px;">Hapus Pengguna?</h4>
-                <p style="font-size:13.5px;color:#74788d;">Pengguna yang dihapus tidak akan dapat masuk kembali ke dalam sistem SIMVENTRA.</p>
+                <p style="font-size:13.5px;color:#74788d;line-height:1.5;">Pengguna yang dihapus tidak akan dapat masuk kembali. Jika terhubung dengan profil Sopir/Karyawan, data profil terkait juga akan <strong>dihapus secara otomatis</strong> (Satu Kesatuan).</p>
             </div>
             <div class="modal-footer" style="justify-content:center;gap:12px;">
                 <button wire:click="$set('showDeleteModal', false)" class="btn btn-secondary">Batal</button>
-                <button wire:click="deleteUser" class="btn btn-danger">Ya, Hapus</button>
+                <button wire:click="deleteUser" class="btn btn-danger">Ya, Hapus Semua</button>
             </div>
         </div>
     </div>

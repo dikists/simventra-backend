@@ -5,13 +5,16 @@
             <h1 class="page-title">Dashboard</h1>
             <p class="page-subtitle">Selamat datang kembali, <strong>{{ auth()->user()->name }}</strong> · {{ now()->translatedFormat('l, d F Y') }}</p>
         </div>
+        @can('view reminders')
         <a href="{{ route('reminders.index') }}" class="btn btn-primary">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
             Reminder Dokumen
         </a>
+        @endcan
     </div>
 
-    <!-- Control Tower Fleet GPS Alert -->
+    <!-- Control Tower Fleet GPS Alert (Khusus Admin / Dispatcher / Tim Armada) -->
+    @can('view vehicles')
     @if(isset($silentTrips) && count($silentTrips) > 0)
     <div style="background:linear-gradient(135deg, #fff1f2 0%, #fee2e2 100%);border:2px solid #ef4444;border-radius:16px;padding:20px 24px;margin-bottom:24px;box-shadow:0 10px 25px -5px rgba(239,68,68,0.2);">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
@@ -77,8 +80,10 @@
         </div>
     </div>
     @endif
+    @endcan
 
     <!-- Critical Alert Dokumen -->
+    @can('view reminders')
     @if($stats['expiring_soon_7'] > 0)
     <div class="alert alert-danger mb-6">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
@@ -88,6 +93,7 @@
         </div>
     </div>
     @endif
+    @endcan
 
     <!-- ========= STAT CARDS ROW 1 ========= -->
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:20px;" class="stats-grid">

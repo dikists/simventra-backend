@@ -56,7 +56,7 @@ class EmployeeIndex extends Component
             }
 
             $employee->delete();
-            session()->flash('success', "Data karyawan '{$employee->name}' berhasil dihapus.");
+            session()->flash('success', "Data '{$employee->name}' beserta akun login dan berkas dokumen terkait berhasil dihapus.");
         }
         $this->showDeleteModal = false;
         $this->deleteId = null;
@@ -64,7 +64,7 @@ class EmployeeIndex extends Component
 
     public function render()
     {
-        $employees = Employee::query()
+        $employees = Employee::with(['user', 'vehicle'])
             ->when($this->search, fn($q) => $q->where(function ($q) {
                 $q->where('name', 'like', "%{$this->search}%")
                   ->orWhere('employee_number', 'like', "%{$this->search}%")
@@ -76,7 +76,11 @@ class EmployeeIndex extends Component
             ->orderBy($this->sortBy, $this->sortDir)
             ->paginate(15);
 
-        return view('livewire.employees.employee-index', compact('employees'))
+        $driverCount = Employee::drivers()->count();
+        $staffCount  = Employee::where('type', '!=', 'sopir')->count();
+        $totalCount  = Employee::count();
+
+        return view('livewire.employees.employee-index', compact('employees', 'driverCount', 'staffCount', 'totalCount'))
             ->layout('layouts.app', ['title' => 'Karyawan & Sopir']);
     }
 }

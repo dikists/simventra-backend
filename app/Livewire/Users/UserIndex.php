@@ -44,7 +44,7 @@ class UserIndex extends Component
         $this->resetValidation();
         $this->reset(['name', 'username', 'email', 'phone', 'password', 'password_confirmation', 'role', 'selectedUserId', 'selectedEmployeeId']);
         $this->is_active = true;
-        $this->role = Role::first()?->name ?? 'HR';
+        $this->role = Role::where('name', 'Dispatcher')->first()?->name ?? Role::first()?->name ?? 'Dispatcher';
         $this->showCreateModal = true;
     }
 
@@ -62,13 +62,11 @@ class UserIndex extends Component
             $cleanName = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', explode(' ', trim($emp->name))[0]));
             $this->username = $cleanName . rand(10, 99);
 
-            // Auto-detect role
+            // Auto-detect role: sopir -> Sopir, karyawan kantor -> Dispatcher
             if ($emp->type === 'sopir') {
                 $this->role = 'Sopir';
-            } elseif (stripos($emp->position ?? '', 'fleet') !== false || stripos($emp->department ?? '', 'armada') !== false) {
-                $this->role = 'Fleet Officer';
-            } elseif (stripos($emp->department ?? '', 'hr') !== false) {
-                $this->role = 'HR';
+            } else {
+                $this->role = 'Dispatcher';
             }
         }
     }
@@ -104,9 +102,24 @@ class UserIndex extends Component
             if ($employee) {
                 $employee->update(['user_id' => $user->id]);
             }
+        } elseif ($this->role === 'Sopir') {
+            // Otomatis buatkan profil Sopir agar selalu satu kesatuan (Satu Sumber Terpusat)
+            $nextDriverNo = 'DRV-' . str_pad((Employee::drivers()->count() + 1), 3, '0', STR_PAD_LEFT);
+            Employee::create([
+                'user_id'           => $user->id,
+                'employee_number'   => $nextDriverNo,
+                'name'              => $user->name,
+                'type'              => 'sopir',
+                'employment_status' => 'kontrak',
+                'position'          => 'Sopir Ekspedisi',
+                'department'        => 'Operasional',
+                'phone'             => $user->phone,
+                'email'             => $user->email,
+                'status'            => $user->is_active ? 'active' : 'inactive',
+            ]);
         }
 
-        session()->flash('success', "Pengguna {$user->name} berhasil ditambahkan" . ($this->selectedEmployeeId ? " dan dihubungkan ke data Karyawan." : "."));
+        session()->flash('success', "Pengguna {$user->name} berhasil ditambahkan" . ($this->role === 'Sopir' ? " beserta profil Sopir baru." : "."));
         $this->showCreateModal = false;
     }
 
@@ -159,7 +172,17 @@ class UserIndex extends Component
         $user->update($data);
         $user->syncRoles([$this->role]);
 
-        session()->flash('success', "Pengguna {$user->name} berhasil diperbarui.");
+        // Sinkronkan pembaruan ke profil Employee/Sopir terkait jika ada (Satu Sumber Terpusat)
+        if ($user->employee) {
+            $user->employee->update([
+                'name'   => $this->name,
+                'phone'  => $this->phone ?: null,
+                'email'  => $this->email,
+                'status' => $this->is_active ? 'active' : 'inactive',
+            ]);
+        }
+
+        session()->flash('success', "Pengguna {$user->name} dan data profil terkait berhasil diperbarui.");
         $this->showEditModal = false;
     }
 
@@ -180,12 +203,10 @@ class UserIndex extends Component
         $user = User::findOrFail($this->selectedUserId);
         $name = $user->name;
 
-        // Unlink employee if linked
-        Employee::where('user_id', $user->id)->update(['user_id' => null]);
-
+        // Cascade delete dijalankan otomatis oleh User::booted() (Satu Kesatuan)
         $user->delete();
 
-        session()->flash('success', "Pengguna {$name} berhasil dihapus.");
+        session()->flash('success', "Pengguna {$name} beserta data profil terkait berhasil dihapus.");
         $this->showDeleteModal = false;
     }
 

@@ -64,6 +64,32 @@ class Employee extends Model
             ->dontSubmitEmptyLogs();
     }
 
+    protected static function booted(): void
+    {
+        static::deleting(function (Employee $employee) {
+            // 1. Cascade hapus akun User terkait (Satu Kesatuan)
+            if ($employee->user_id) {
+                $user = User::find($employee->user_id);
+                if ($user) {
+                    $employee->user_id = null;
+                    $employee->saveQuietly();
+                    $user->delete();
+                }
+            }
+
+            // 2. Lepaskan armada yang ditugaskan agar tidak terkunci
+            Vehicle::where('assigned_driver_id', $employee->id)->update(['assigned_driver_id' => null]);
+
+            // 3. Batalkan penugasan trip yang belum berangkat
+            VehicleAssignment::where('driver_id', $employee->id)
+                ->whereIn('status', ['assigned', 'confirmed'])
+                ->update(['status' => 'cancelled', 'notes' => 'Dibatalkan otomatis karena sopir dihapus dari sistem']);
+
+            // 4. Cascade hapus seluruh berkas dokumen terkait
+            $employee->documents()->delete();
+        });
+    }
+
     // Relationships
     public function user()
     {

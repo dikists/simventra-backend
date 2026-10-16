@@ -66,7 +66,7 @@ class EmployeeDocumentIndex extends Component
             $filePath = $this->file->store('employee-documents', config('filesystems.default_public_disk'));
         }
 
-        EmployeeDocument::create([
+        $doc = EmployeeDocument::create([
             'employee_id'     => $this->employee_id,
             'document_type'   => $this->document_type,
             'document_number' => $this->document_number,
@@ -79,7 +79,28 @@ class EmployeeDocumentIndex extends Component
             'uploaded_by'     => auth()->id(),
         ]);
 
-        session()->flash('success', 'Dokumen karyawan berhasil ditambahkan.');
+        // Sinkronkan ke data profil Employee (Satu Sumber Terpusat)
+        $employee = \App\Models\Employee::find($this->employee_id);
+        if ($employee) {
+            $docType = strtolower($this->document_type);
+            if ($docType === 'sim') {
+                $employee->update([
+                    'sim_number' => $this->document_number ?: $employee->sim_number,
+                    'sim_expiry' => $this->expiry_date ?: $employee->sim_expiry,
+                ]);
+            } elseif ($docType === 'skck') {
+                $employee->update([
+                    'has_skck'    => true,
+                    'skck_expiry' => $this->expiry_date ?: $employee->skck_expiry,
+                ]);
+            } elseif ($docType === 'ktp') {
+                $employee->update([
+                    'nik' => $this->document_number ?: $employee->nik,
+                ]);
+            }
+        }
+
+        session()->flash('success', 'Dokumen karyawan berhasil ditambahkan dan disinkronkan ke profil.');
         $this->closeForm();
     }
 
