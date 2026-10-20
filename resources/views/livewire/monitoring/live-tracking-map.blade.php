@@ -51,6 +51,51 @@
                 </div>
             </div>
 
+            <!-- Armada Siap Berangkat / Belum Dimulai Sopir -->
+            @if(isset($stagedTrips) && $stagedTrips->isNotEmpty())
+            <div class="card" style="padding:14px;border:1px solid #fed7aa;background:#fffaf5;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:13px;">⏱️</span>
+                        <h4 style="font-size:12px;font-weight:700;color:#9a3412;margin:0;text-transform:uppercase;letter-spacing:0.5px;">
+                            Siap Berangkat ({{ $stagedTrips->count() }})
+                        </h4>
+                    </div>
+                    <span style="font-size:10px;font-weight:700;background:#ffedd5;color:#c2410c;padding:2px 6px;border-radius:4px;">Di Gudang</span>
+                </div>
+                <div style="font-size:11px;color:#78350f;margin-bottom:10px;line-height:1.4;">
+                    Armada berikut sudah ditugaskan. Jika sopir lupa tekan tombol di HP, berangkatkan dari sini:
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    @foreach($stagedTrips as $staged)
+                    <div style="background:#fff;border:1px solid #fed7aa;border-radius:8px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                        <div style="min-width:0;">
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <span style="font-size:12px;font-weight:800;color:#1e293b;font-family:monospace;">
+                                    {{ strtoupper($staged->vehicle?->license_plate ?? '-') }}
+                                </span>
+                                <span style="font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600;background:{{ $staged->status === 'confirmed' ? '#ccfbf1' : '#dbeafe' }};color:{{ $staged->status === 'confirmed' ? '#115e59' : '#1e40af' }};">
+                                    {{ $staged->status === 'confirmed' ? 'Dikonfirmasi' : 'Ditugaskan' }}
+                                </span>
+                            </div>
+                            <div style="font-size:11px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                {{ $staged->driver?->name ?? 'Sopir' }} &bull; {{ $staged->destination ?: 'Rute' }}
+                            </div>
+                        </div>
+                        <button type="button"
+                                wire:click="startTripManual({{ $staged->id }})"
+                                wire:loading.attr="disabled"
+                                wire:confirm="Berangkatkan armada {{ $staged->vehicle?->license_plate }} sekarang? Marker akan langsung aktif di peta Live GPS."
+                                style="background:#0d6efd;color:#fff;border:none;padding:5px 9px;font-size:11px;font-weight:700;border-radius:6px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;flex-shrink:0;box-shadow:0 1px 3px rgba(13,110,253,0.3);">
+                            <span wire:loading.remove wire:target="startTripManual({{ $staged->id }})">🚀 Berangkat</span>
+                            <span wire:loading wire:target="startTripManual({{ $staged->id }})">...</span>
+                        </button>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+
             <!-- Gudang Utama Info Box -->
             <div class="card" style="padding:16px;background:#f8fafc;">
                 <div style="display:flex;align-items:center;gap:10px;">
@@ -213,6 +258,12 @@
 
         fetchLocations();
         setInterval(fetchLocations, 4000);
+
+        if (typeof $wire !== 'undefined') {
+            $wire.on('trip-started', () => {
+                setTimeout(fetchLocations, 600);
+            });
+        }
     };
 
     window.fetchLocations = async function() {

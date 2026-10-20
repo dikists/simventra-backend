@@ -175,6 +175,59 @@ class VehicleDetail extends Component
         }
     }
 
+    /**
+     * Dispatcher secara manual memulai perjalanan armada (misal supir lupa tekan tombol di HP)
+     */
+    public function startTripManual(int $assignmentId): void
+    {
+        $assignment = VehicleAssignment::with(['vehicle', 'driver'])->find($assignmentId);
+
+        if (!$assignment) {
+            session()->flash('error', 'Data penugasan tidak ditemukan.');
+            return;
+        }
+
+        if (!in_array($assignment->status, ['assigned', 'confirmed'])) {
+            session()->flash('error', 'Penugasan tidak dapat dimulai (status saat ini: ' . $assignment->status_label . ').');
+            return;
+        }
+
+        $assignment->update([
+            'status'         => 'on_trip',
+            'departure_time' => now(),
+        ]);
+
+        $driver = $assignment->driver;
+        $driverName = $driver?->name ?? 'Sopir';
+        $driverUser = $driver ? \App\Services\DriverMatchingService::findUserForDriver($driver) : null;
+
+        if ($driverUser && !empty($driverUser->push_token)) {
+            PushNotificationService::sendToUser(
+                $driverUser,
+                '🚀 Perjalanan Telah Dimulai!',
+                "Koordinator telah memberangkatkan armada {$this->vehicle->license_plate} ke {$assignment->destination}. Pelacakan GPS aktif di HP Anda.",
+                [
+                    'assignment_id' => $assignment->id,
+                    'license_plate' => $this->vehicle->license_plate,
+                    'status'        => 'on_trip',
+                ]
+            );
+        }
+
+        activity()
+            ->performedOn($this->vehicle)
+            ->causedBy(auth()->user())
+            ->withProperties([
+                'assignment_id' => $assignment->id,
+                'driver_name'   => $driverName,
+                'destination'   => $assignment->destination,
+            ])
+            ->log("Dispatcher memberangkatkan armada {$this->vehicle->license_plate} (Sopir: {$driverName}). Status penugasan diubah ke On-Trip.");
+
+        $this->loadVehicleData();
+        session()->flash('success', "Armada {$this->vehicle->license_plate} berhasil diberangkatkan! Status kini On-Trip dan aktif di Live GPS.");
+    }
+
     public function openReturnModal(): void
     {
         $this->resetValidation();

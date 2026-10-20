@@ -169,18 +169,57 @@
                             </div>
 
                             @if($activeAssignment->status === 'assigned')
-                            <div style="margin-top:10px;padding:8px 10px;background:#fff1f2;border:1px solid #fecdd3;border-radius:6px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                            <div style="margin-top:10px;padding:10px 12px;background:#fff1f2;border:1px solid #fecdd3;border-radius:6px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
                                 <div>
                                     <div style="font-size:11.5px;font-weight:700;color:#9f1239;">⚠️ Menunggu Konfirmasi Sopir</div>
                                     <div style="font-size:10.5px;color:#be123c;">Sopir belum menekan konfirmasi di HP.</div>
                                 </div>
+                                <div style="display:flex;align-items:center;gap:6px;">
+                                    <button type="button"
+                                            wire:click="recallDriverNotification({{ $activeAssignment->id }})"
+                                            wire:loading.attr="disabled"
+                                            style="background:#e11d48;color:#fff;border:none;padding:5px 10px;font-size:11.5px;font-weight:700;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                                        <span wire:loading.remove wire:target="recallDriverNotification({{ $activeAssignment->id }})">🔔 Deringkan Ulang</span>
+                                        <span wire:loading wire:target="recallDriverNotification({{ $activeAssignment->id }})">Memanggil...</span>
+                                    </button>
+                                    <button type="button"
+                                            wire:click="startTripManual({{ $activeAssignment->id }})"
+                                            wire:loading.attr="disabled"
+                                            wire:confirm="Sopir belum konfirmasi di HP. Tetap berangkatkan armada {{ $vehicle->license_plate }} sekarang?"
+                                            style="background:#0d6efd;color:#fff;border:none;padding:5px 10px;font-size:11.5px;font-weight:700;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;"
+                                            title="Bypass konfirmasi dan langsung aktifkan perjalanan">
+                                        <span wire:loading.remove wire:target="startTripManual({{ $activeAssignment->id }})">🚀 Berangkatkan</span>
+                                        <span wire:loading wire:target="startTripManual({{ $activeAssignment->id }})">...</span>
+                                    </button>
+                                </div>
+                            </div>
+                            @elseif($activeAssignment->status === 'confirmed')
+                            <div style="margin-top:10px;padding:10px 12px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+                                <div>
+                                    <div style="font-size:11.5px;font-weight:700;color:#065f46;">✓ Tugas Dikonfirmasi Sopir (Siap Berangkat)</div>
+                                    <div style="font-size:10.5px;color:#047857;">Sopir lupa tekan tombol di HP? Berangkatkan langsung dari sini:</div>
+                                </div>
                                 <button type="button"
-                                        wire:click="recallDriverNotification({{ $activeAssignment->id }})"
+                                        wire:click="startTripManual({{ $activeAssignment->id }})"
                                         wire:loading.attr="disabled"
-                                        style="background:#e11d48;color:#fff;border:none;padding:5px 10px;font-size:11.5px;font-weight:700;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
-                                    <span wire:loading.remove wire:target="recallDriverNotification({{ $activeAssignment->id }})">🔔 Deringkan Ulang</span>
-                                    <span wire:loading wire:target="recallDriverNotification({{ $activeAssignment->id }})">Memanggil...</span>
+                                        wire:confirm="Berangkatkan armada {{ $vehicle->license_plate }} sekarang? Status akan berubah ke On-Trip dan aktif di Live GPS."
+                                        style="background:#0d6efd;color:#fff;border:none;padding:7px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 4px rgba(13,110,253,0.3);">
+                                    <span wire:loading.remove wire:target="startTripManual({{ $activeAssignment->id }})">🚀 Mulai Perjalanan (Berangkatkan)</span>
+                                    <span wire:loading wire:target="startTripManual({{ $activeAssignment->id }})">Memproses...</span>
                                 </button>
+                            </div>
+                            @elseif($activeAssignment->status === 'on_trip')
+                            <div style="margin-top:10px;padding:10px 12px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <span style="width:8px;height:8px;border-radius:50%;background:#8b5cf6;display:inline-block;animation:pulse 1.5s infinite;"></span>
+                                    <div>
+                                        <div style="font-size:11.5px;font-weight:700;color:#6d28d9;">Sedang Dalam Perjalanan (On-Trip)</div>
+                                        <div style="font-size:10.5px;color:#7c3aed;">Pelacakan GPS aktif & dipantau Control Tower.</div>
+                                    </div>
+                                </div>
+                                <a href="{{ route('tracking.index') }}" class="btn btn-sm" style="background:#7c3aed;color:#fff;padding:5px 12px;font-size:11.5px;font-weight:700;border-radius:6px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;">
+                                    Pantau di Live GPS →
+                                </a>
                             </div>
                             @endif
                         </div>
