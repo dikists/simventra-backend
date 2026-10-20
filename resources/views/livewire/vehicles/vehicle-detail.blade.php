@@ -303,6 +303,7 @@
                                 <th>Waktu Berangkat / Pulang</th>
                                 <th>Jarak Tempuh</th>
                                 <th>Status / Kondisi</th>
+                                <th style="text-align:center;width:90px;">Rute GPS</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -352,10 +353,19 @@
                                         </div>
                                     @endif
                                 </td>
+                                <td style="text-align:center;">
+                                    <button type="button"
+                                            wire:click="openRouteModal({{ $history->id }})"
+                                            class="btn btn-sm"
+                                            style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;padding:4px 8px;font-size:11px;font-weight:700;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;"
+                                            title="Lihat peta rute yang dilalui">
+                                        🗺️ Rute
+                                    </button>
+                                </td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="5" style="text-align:center;padding:24px;color:#adb5bd;">
+                                <td colspan="6" style="text-align:center;padding:24px;color:#adb5bd;">
                                     Belum ada catatan riwayat penugasan untuk armada ini.
                                 </td>
                             </tr>
@@ -639,6 +649,116 @@
         </div>
     </div>
     @endif
+
+    <!-- MODAL POPUP: VISUALISASI PETA JEJAK RUTE GPS PERJALANAN -->
+    @if($showRouteModal)
+    <div style="position:fixed;inset:0;background:rgba(15,23,42,0.7);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;">
+        <div class="card" style="width:100%;max-width:960px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,0.25);">
+            
+            <!-- Modal Header -->
+            <div style="padding:16px 20px;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #334155;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="background:#2563eb;color:#fff;padding:4px 10px;border-radius:8px;font-family:monospace;font-weight:800;font-size:14px;letter-spacing:1px;">
+                        {{ $selectedRoute['license_plate'] ?? '-' }}
+                    </div>
+                    <div>
+                        <h3 style="font-size:15px;font-weight:800;color:#fff;margin:0;">
+                            Audit Rute: {{ $selectedRoute['driver_name'] ?? 'Sopir' }} &bull; {{ $selectedRoute['vehicle_name'] ?? 'Armada' }}
+                        </h3>
+                        <div style="font-size:12px;color:#94a3b8;margin-top:2px;">
+                            🏁 Tujuan: <strong>{{ $selectedRoute['destination'] ?? '-' }}</strong> &bull; {{ $selectedRoute['departure_time'] ?? '-' }}
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button"
+                        wire:click="closeRouteModal"
+                        style="background:transparent;border:none;color:#94a3b8;font-size:20px;cursor:pointer;padding:4px 8px;border-radius:6px;"
+                        title="Tutup Peta">
+                    ✕
+                </button>
+            </div>
+
+            <!-- Modal Telemetry Bar -->
+            <div style="background:#f8fafc;padding:10px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12px;">
+                <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+                    <div>
+                        <span style="color:#64748b;">Jarak Odometer:</span>
+                        <strong style="color:#0f172a;margin-left:4px;">{{ $selectedRoute['distance_km'] }}</strong>
+                    </div>
+                    <div style="color:#cbd5e1;">&bull;</div>
+                    <div>
+                        <span style="color:#64748b;">Durasi:</span>
+                        <strong style="color:#0f172a;margin-left:4px;">{{ $selectedRoute['duration'] }}</strong>
+                    </div>
+                    <div style="color:#cbd5e1;">&bull;</div>
+                    <div>
+                        <span style="color:#64748b;">Kecepatan Maks:</span>
+                        <strong style="color:#dc2626;margin-left:4px;">{{ $selectedRoute['max_speed'] }} KM/H</strong>
+                    </div>
+                    <div style="color:#cbd5e1;">&bull;</div>
+                    <div>
+                        <span style="color:#64748b;">Kecepatan Rata2:</span>
+                        <strong style="color:#2563eb;margin-left:4px;">{{ $selectedRoute['avg_speed'] }} KM/H</strong>
+                    </div>
+                    <div style="color:#cbd5e1;">&bull;</div>
+                    <div>
+                        <span style="color:#64748b;">Titik GPS:</span>
+                        <strong style="color:#10b981;margin-left:4px;">{{ $selectedRoute['points_count'] }} Titik</strong>
+                    </div>
+                </div>
+
+                <div>
+                    <span class="badge badge-{{ $selectedRoute['status_badge_color'] ?? 'gray' }}">
+                        {{ $selectedRoute['status_label'] ?? 'Status' }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Map Container -->
+            <div style="flex:1;position:relative;background:#f1f5f9;min-height:480px;">
+                <div id="vehicle-route-history-map" style="width:100%;height:100%;min-height:480px;z-index:1;"></div>
+
+                @if(($selectedRoute['points_count'] ?? 0) === 0)
+                <div style="position:absolute;top:20px;left:50%;transform:translateX(-50%);z-index:999;background:rgba(255,255,255,0.96);padding:12px 20px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.12);border:1px solid #fecdd3;max-width:480px;text-align:center;">
+                    <div style="font-weight:700;color:#9f1239;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;">
+                        <span>⚠️ Data GPS Riil Tidak Terekam</span>
+                    </div>
+                    <div style="font-size:11.5px;color:#881337;margin-top:4px;line-height:1.4;">
+                        Sopir tidak mengaktifkan GPS atau perangkat offline saat perjalanan ini berlangsung. Peta menampilkan titik awal gudang dan titik estimasi tujuan.
+                    </div>
+                </div>
+                @endif
+
+                <!-- Map Overlay Legend -->
+                <div style="position:absolute;bottom:16px;left:16px;z-index:999;background:rgba(255,255,255,0.95);backdrop-filter:blur(4px);padding:8px 14px;border-radius:8px;box-shadow:0 4px 10px rgba(0,0,0,0.1);border:1px solid #e2e8f0;font-size:11.5px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:14px;">🏢</span>
+                        <span style="font-weight:600;color:#334155;">Gudang Asal</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:14px;">🏁</span>
+                        <span style="font-weight:600;color:#334155;">Titik Tujuan</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-weight:800;color:#4f46e5;font-size:16px;">━</span>
+                        <span style="font-weight:600;color:#334155;">Jalur Yang Dilewati</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div style="padding:12px 20px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
+                <div style="font-size:12px;color:#64748b;">
+                    Asal: <strong>{{ $selectedRoute['origin'] }}</strong> &bull; Kondisi Unit: <strong>{{ $selectedRoute['condition'] }}</strong>
+                </div>
+                <button type="button" wire:click="closeRouteModal" class="btn btn-secondary" style="font-size:13px;padding:6px 16px;">
+                    Tutup Peta
+                </button>
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
 
 @script
@@ -648,6 +768,125 @@
     let currentPickedText = '';
     let currentPickedLat = null;
     let currentPickedLng = null;
+    let vehicleRouteMapInstance = null;
+
+    $wire.on('render-route-map', (data) => {
+        const route = data.routeData || {};
+        setTimeout(() => {
+            initVehicleRouteMap(route);
+        }, 150);
+    });
+
+    function initVehicleRouteMap(route) {
+        const container = document.getElementById('vehicle-route-history-map');
+        if (!container) return;
+
+        if (vehicleRouteMapInstance) {
+            vehicleRouteMapInstance.remove();
+            vehicleRouteMapInstance = null;
+        }
+
+        const warehouseCoords = [route.warehouse_lat || -6.2088, route.warehouse_lng || 106.8456];
+
+        vehicleRouteMapInstance = L.map('vehicle-route-history-map', {
+            center: warehouseCoords,
+            zoom: 12,
+            zoomControl: true
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(vehicleRouteMapInstance);
+
+        // Marker Gudang Asal
+        const startIcon = L.divIcon({
+            className: 'wh-start-pin',
+            html: '<div style="width:30px;height:30px;border-radius:8px;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 3px 8px rgba(245,158,11,0.5);border:2px solid #fff;">🏢</div>',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        });
+
+        L.marker(warehouseCoords, { icon: startIcon })
+            .addTo(vehicleRouteMapInstance)
+            .bindPopup(`<b>Titik Keberangkatan</b><br>${route.warehouse_name || 'Gudang Utama'}<br><span style="font-size:11px;color:#64748b;">Waktu: ${route.departure_time}</span>`);
+
+        const bounds = [warehouseCoords];
+
+        // Marker Titik Tujuan
+        if (route.destination_lat && route.destination_lng) {
+            const destCoords = [parseFloat(route.destination_lat), parseFloat(route.destination_lng)];
+            const destIcon = L.divIcon({
+                className: 'dest-flag-pin',
+                html: '<div style="width:30px;height:30px;border-radius:8px;background:#ef4444;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 3px 8px rgba(239,68,68,0.5);border:2px solid #fff;">🏁</div>',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+
+            L.marker(destCoords, { icon: destIcon })
+                .addTo(vehicleRouteMapInstance)
+                .bindPopup(`<b>Destinasi Tujuan</b><br>${route.destination}<br><span style="font-size:11px;color:#64748b;">Waktu Selesai: ${route.return_time}</span>`);
+
+            bounds.push(destCoords);
+        }
+
+        // Draw Historical Trail
+        const trailPoints = route.trail || [];
+        if (trailPoints.length > 0) {
+            const latlngs = [];
+            latlngs.push(warehouseCoords);
+
+            trailPoints.forEach((point, i) => {
+                const pt = [parseFloat(point.lat), parseFloat(point.lng)];
+                latlngs.push(pt);
+                bounds.push(pt);
+
+                if (i === trailPoints.length - 1 || i % Math.max(1, Math.floor(trailPoints.length / 8)) === 0) {
+                    const circle = L.circleMarker(pt, {
+                        radius: 5,
+                        fillColor: '#4f46e5',
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.9
+                    }).addTo(vehicleRouteMapInstance);
+
+                    circle.bindTooltip(`
+                        <div style="font-size:11px;font-family:'Plus Jakarta Sans',sans-serif;">
+                            <div>⏱️ <b>${point.time} WIB</b></div>
+                            <div>⚡ Kecepatan: <b>${point.speed} KM/H</b></div>
+                        </div>
+                    `);
+                }
+            });
+
+            L.polyline(latlngs, {
+                color: '#4f46e5',
+                weight: 5,
+                opacity: 0.85,
+                lineJoin: 'round'
+            }).addTo(vehicleRouteMapInstance);
+
+            L.polyline(latlngs, {
+                color: '#818cf8',
+                weight: 9,
+                opacity: 0.35,
+                lineJoin: 'round'
+            }).addTo(vehicleRouteMapInstance);
+        }
+
+        if (bounds.length > 1) {
+            vehicleRouteMapInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+        } else {
+            vehicleRouteMapInstance.setView(warehouseCoords, 13);
+        }
+
+        setTimeout(() => {
+            if (vehicleRouteMapInstance) {
+                vehicleRouteMapInstance.invalidateSize();
+            }
+        }, 300);
+    }
 
     const defaultLat = {{ (float) ($primaryWarehouse->latitude ?? -6.2088) }};
     const defaultLng = {{ (float) ($primaryWarehouse->longitude ?? 106.8456) }};

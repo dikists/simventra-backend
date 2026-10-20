@@ -31,6 +31,10 @@ class VehicleDetail extends Component
     public string $returnCondition = 'baik';
     public ?string $returnNotes = null;
 
+    // Route Playback Modal
+    public bool $showRouteModal = false;
+    public array $selectedRoute = [];
+
     public function mount(Vehicle $vehicle): void
     {
         $this->vehicle = $vehicle;
@@ -226,6 +230,79 @@ class VehicleDetail extends Component
 
         $this->loadVehicleData();
         session()->flash('success', "Armada {$this->vehicle->license_plate} berhasil diberangkatkan! Status kini On-Trip dan aktif di Live GPS.");
+    }
+
+    public function openRouteModal(int $assignmentId): void
+    {
+        $assignment = VehicleAssignment::with([
+            'vehicle',
+            'driver',
+            'locations' => fn($q) => $q->orderBy('recorded_at', 'asc')->orderBy('id', 'asc'),
+        ])->findOrFail($assignmentId);
+
+        $locations = $assignment->locations;
+        $warehouse = \App\Models\Warehouse::getPrimary();
+
+        $trail = $locations->map(fn($loc) => [
+            'lat'       => (float) $loc->latitude,
+            'lng'       => (float) $loc->longitude,
+            'speed'     => (float) $loc->speed,
+            'heading'   => (float) $loc->heading,
+            'time'      => $loc->recorded_at ? $loc->recorded_at->format('H:i:s') : '-',
+            'full_time' => $loc->recorded_at ? $loc->recorded_at->format('d/m/Y H:i') : '-',
+        ])->values()->toArray();
+
+        $speeds = $locations->pluck('speed')->filter(fn($s) => $s > 0);
+        $maxSpeed = $speeds->isNotEmpty() ? round($speeds->max(), 1) : 0;
+        $avgSpeed = $speeds->isNotEmpty() ? round($speeds->avg(), 1) : 0;
+
+        $duration = '-';
+        if ($assignment->departure_time && $assignment->return_time) {
+            $duration = $assignment->departure_time->diffForHumans($assignment->return_time, true);
+        } elseif ($assignment->departure_time) {
+            $duration = $assignment->departure_time->diffForHumans(now(), true) . ' (Sedang Berjalan)';
+        }
+
+        $this->selectedRoute = [
+            'id'                    => $assignment->id,
+            'license_plate'         => strtoupper($assignment->vehicle?->license_plate ?? '-'),
+            'vehicle_name'          => trim(($assignment->vehicle?->brand ?? '') . ' ' . ($assignment->vehicle?->model ?? '')),
+            'vehicle_type'          => ucfirst($assignment->vehicle?->vehicle_type ?? 'Mobil Barang'),
+            'driver_name'           => $assignment->driver?->name ?? 'Sopir',
+            'driver_sim'            => $assignment->driver?->sim_type ? "SIM {$assignment->driver->sim_type}" : '-',
+            'driver_phone'          => $assignment->driver?->phone ?? '-',
+            'origin'                => $assignment->origin ?: $warehouse->name,
+            'destination'           => $assignment->destination ?: 'Rute Pengiriman',
+            'departure_time'        => $assignment->departure_time ? $assignment->departure_time->format('d/m/Y H:i') : '-',
+            'return_time'           => $assignment->return_time ? $assignment->return_time->format('d/m/Y H:i') : '(Sedang Berjalan)',
+            'duration'              => $duration,
+            'start_odometer'        => $assignment->start_odometer ? number_format((float) $assignment->start_odometer, 0, ',', '.') : '-',
+            'end_odometer'          => $assignment->end_odometer ? number_format((float) $assignment->end_odometer, 0, ',', '.') : '-',
+            'distance_km'           => $assignment->distance_traveled !== null ? number_format((float) $assignment->distance_traveled, 0, ',', '.') . ' KM' : '-',
+            'status_label'          => $assignment->status_label,
+            'status_badge_color'    => $assignment->status_badge_color,
+            'condition'             => ucfirst($assignment->vehicle_condition_on_return ?? 'Baik'),
+            'notes'                 => $assignment->notes ?: '-',
+            'warehouse_lat'         => (float) $warehouse->latitude,
+            'warehouse_lng'         => (float) $warehouse->longitude,
+            'warehouse_name'        => $warehouse->name,
+            'warehouse_address'     => $warehouse->address,
+            'destination_lat'       => $assignment->destination_latitude ? (float) $assignment->destination_latitude : null,
+            'destination_lng'       => $assignment->destination_longitude ? (float) $assignment->destination_longitude : null,
+            'points_count'          => $locations->count(),
+            'max_speed'             => $maxSpeed,
+            'avg_speed'             => $avgSpeed,
+            'trail'                 => $trail,
+        ];
+
+        $this->showRouteModal = true;
+        $this->dispatch('render-route-map', routeData: $this->selectedRoute);
+    }
+
+    public function closeRouteModal(): void
+    {
+        $this->showRouteModal = false;
+        $this->selectedRoute = [];
     }
 
     public function openReturnModal(): void
