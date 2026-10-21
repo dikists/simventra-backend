@@ -16,6 +16,7 @@ use App\Livewire\ActivityLogs\ActivityLogIndex;
 use App\Livewire\Monitoring\LiveTrackingMap;
 use App\Livewire\Settings\WarehouseSettings;
 use App\Livewire\Settings\CompanySettings;
+use App\Livewire\Settings\AlertSettings;
 use App\Livewire\Maintenance\MaintenanceIndex;
 use App\Livewire\Incidents\IncidentIndex;
 use Illuminate\Support\Facades\Route;
@@ -105,5 +106,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('can:view users')->group(function () {
         Route::get('/pengaturan/perusahaan', CompanySettings::class)->name('settings.company');
         Route::get('/pengaturan/gudang', WarehouseSettings::class)->name('settings.warehouse');
+        Route::get('/pengaturan/alert-wa', AlertSettings::class)->name('settings.alerts');
     });
 });

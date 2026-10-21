@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\CompanySetting;
 use App\Models\DriverLocation;
 use App\Models\Employee;
 use App\Models\Incident;
@@ -430,7 +431,7 @@ class DriverApiController extends Controller
             ->groupBy('assignment_id')
             ->map(fn ($locs) => $locs->take($trailLimit)->reverse()->values());
 
-        $timeoutMinutes = (int) config('simventra.heartbeat.timeout_minutes', 5);
+        $timeoutMinutes = CompanySetting::getHeartbeatTimeout();
         $cutoffAt = now()->subMinutes($timeoutMinutes);
 
         $fleets = $activeAssignments->map(function (VehicleAssignment $assignment) use ($cutoffAt, $trailLocations) {

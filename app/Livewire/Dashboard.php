@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\CompanySetting;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use App\Models\Vehicle;
@@ -26,7 +27,7 @@ class Dashboard extends Component
             $isGpsSilent = false;
             $silenceMinutes = 0;
             if ($activeAssignment && $activeAssignment->status === 'on_trip') {
-                $timeoutMinutes = (int) config('simventra.heartbeat.timeout_minutes', 5);
+                $timeoutMinutes = CompanySetting::getHeartbeatTimeout();
                 $refTime = $activeAssignment->last_ping_at ?? $activeAssignment->departure_time ?? $activeAssignment->updated_at;
                 if ($refTime && \Carbon\Carbon::instance($refTime)->isBefore(now()->subMinutes($timeoutMinutes))) {
                     $isGpsSilent = true;
@@ -73,7 +74,7 @@ class Dashboard extends Component
             ->limit(5)
             ->get();
 
-        $timeoutMinutes = (int) config('simventra.heartbeat.timeout_minutes', 5);
+        $timeoutMinutes = CompanySetting::getHeartbeatTimeout();
         $cutoffAt = now()->subMinutes($timeoutMinutes);
 
         // Armada yang sedang dalam perjalanan

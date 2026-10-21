@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\CompanySetting;
 use App\Models\HeartbeatAlert;
 use App\Models\User;
 use App\Models\VehicleAssignment;
@@ -83,17 +84,24 @@ class SendHeartbeatAlertJob implements ShouldQueue
         }
 
         // ─────────────────────────────────────────────────────────────────
-        // 2. WhatsApp → Sopir (via Wablas)
+        // 2. WhatsApp → Sopir (via Wablas) jika diaktifkan di Pengaturan
         // ─────────────────────────────────────────────────────────────────
-        if (!empty($driver->phone)) {
-            $waMessage = $this->buildDriverWaMessage($driverName, $plateNumber, $destination, $minutes);
-            $waSent    = WhatsAppService::send($driver->phone, $waMessage);
+        $isWaEnabled = CompanySetting::isWaAlertEnabled();
+        $notifyDriverWa = $isWaEnabled && CompanySetting::shouldNotifyDriver();
 
-            if (!$waSent) {
-                $errorNotes[] = 'WA ke sopir gagal';
+        if ($notifyDriverWa) {
+            if (!empty($driver->phone)) {
+                $waMessage = $this->buildDriverWaMessage($driverName, $plateNumber, $destination, $minutes);
+                $waSent    = WhatsAppService::send($driver->phone, $waMessage);
+
+                if (!$waSent) {
+                    $errorNotes[] = 'WA ke sopir gagal';
+                }
+            } else {
+                $errorNotes[] = 'Sopir tidak memiliki nomor HP, WA dilewati';
             }
-        } else {
-            $errorNotes[] = 'Sopir tidak memiliki nomor HP, WA dilewati';
+        } elseif (!$isWaEnabled) {
+            $errorNotes[] = 'WA Alert dinonaktifkan di pengaturan sistem';
         }
 
         // ─────────────────────────────────────────────────────────────────
@@ -105,6 +113,7 @@ class SendHeartbeatAlertJob implements ShouldQueue
 
         $dispatcherCount = 0;
         $dispatcherWaSentCount = 0;
+        $notifyDispatcherWa = $isWaEnabled && CompanySetting::shouldNotifyDispatcher();
         $dispatcherWaMessage = $this->buildDispatcherWaMessage($driverName, $plateNumber, $destination, $minutes);
 
         foreach ($dispatchers as $dispatcher) {
@@ -122,18 +131,22 @@ class SendHeartbeatAlertJob implements ShouldQueue
             );
             if ($sent) $dispatcherCount++;
 
-            // 3b. WhatsApp ke Dispatcher / Fleet Officer jika nomor HP terdaftar
-            $targetPhone = $dispatcher->phone ?? $dispatcher->employee?->phone;
-            if (!empty($targetPhone)) {
-                $waOk = WhatsAppService::send($targetPhone, $dispatcherWaMessage);
-                if ($waOk) $dispatcherWaSentCount++;
+            // 3b. WhatsApp ke Dispatcher / Fleet Officer jika diaktifkan dan nomor HP terdaftar
+            if ($notifyDispatcherWa) {
+                $targetPhone = $dispatcher->phone ?? $dispatcher->employee?->phone;
+                if (!empty($targetPhone)) {
+                    $waOk = WhatsAppService::send($targetPhone, $dispatcherWaMessage);
+                    if ($waOk) $dispatcherWaSentCount++;
+                }
             }
         }
 
-        // 3c. WhatsApp juga ke CONTROL_TOWER_PHONE atau ADMIN_PHONE di .env jika disetel
-        $adminPhone = config('simventra.notifications.admin_phone');
-        if (!empty($adminPhone)) {
-            WhatsAppService::send($adminPhone, $dispatcherWaMessage);
+        // 3c. WhatsApp juga ke nomor khusus Control Tower jika disetel
+        if ($notifyDispatcherWa) {
+            $controlTowerPhone = CompanySetting::getControlTowerPhone();
+            if (!empty($controlTowerPhone)) {
+                WhatsAppService::send($controlTowerPhone, $dispatcherWaMessage);
+            }
         }
 
         $pushDispatcher = $dispatcherCount > 0;

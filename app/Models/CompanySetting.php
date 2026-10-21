@@ -16,6 +16,20 @@ class CompanySetting extends Model
         'phone',
         'email',
         'address',
+        'heartbeat_timeout_minutes',
+        'heartbeat_cooldown_minutes',
+        'wa_alert_enabled',
+        'wa_notify_driver',
+        'wa_notify_dispatcher',
+        'control_tower_phone',
+    ];
+
+    protected $casts = [
+        'wa_alert_enabled'           => 'boolean',
+        'wa_notify_driver'          => 'boolean',
+        'wa_notify_dispatcher'      => 'boolean',
+        'heartbeat_timeout_minutes' => 'integer',
+        'heartbeat_cooldown_minutes'=> 'integer',
     ];
 
     /**
@@ -35,10 +49,15 @@ class CompanySetting extends Model
 
         if (! $setting) {
             $setting = static::create([
-                'name'       => 'PT Rajawali Handal Logistik',
-                'short_name' => 'Rajawali Handal',
-                'tagline'    => 'Logistik',
-                'logo_path'  => '/assets/logo_rhl.png',
+                'name'                       => 'PT Rajawali Handal Logistik',
+                'short_name'                 => 'Rajawali Handal',
+                'tagline'                    => 'Logistik',
+                'logo_path'                  => '/assets/logo_rhl.png',
+                'heartbeat_timeout_minutes'  => 5,
+                'heartbeat_cooldown_minutes' => 10,
+                'wa_alert_enabled'           => true,
+                'wa_notify_driver'          => true,
+                'wa_notify_dispatcher'      => true,
             ]);
         }
 
@@ -77,6 +96,42 @@ class CompanySetting extends Model
     public static function getTagline(): string
     {
         return static::getSettings()->tagline ?? 'Logistik';
+    }
+
+    public static function getHeartbeatTimeout(): int
+    {
+        $val = static::getSettings()->heartbeat_timeout_minutes;
+        return ($val !== null && $val > 0) ? (int) $val : (int) config('simventra.heartbeat.timeout_minutes', 5);
+    }
+
+    public static function getHeartbeatCooldown(): int
+    {
+        $val = static::getSettings()->heartbeat_cooldown_minutes;
+        return ($val !== null && $val > 0) ? (int) $val : (int) config('simventra.heartbeat.cooldown_minutes', 10);
+    }
+
+    public static function isWaAlertEnabled(): bool
+    {
+        $val = static::getSettings()->wa_alert_enabled;
+        return $val !== null ? (bool) $val : true;
+    }
+
+    public static function shouldNotifyDriver(): bool
+    {
+        $val = static::getSettings()->wa_notify_driver;
+        return $val !== null ? (bool) $val : true;
+    }
+
+    public static function shouldNotifyDispatcher(): bool
+    {
+        $val = static::getSettings()->wa_notify_dispatcher;
+        return $val !== null ? (bool) $val : true;
+    }
+
+    public static function getControlTowerPhone(): ?string
+    {
+        $phone = static::getSettings()->control_tower_phone;
+        return !empty($phone) ? $phone : config('simventra.notifications.admin_phone');
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Jobs\SendHeartbeatAlertJob;
+use App\Models\CompanySetting;
 use App\Models\VehicleAssignment;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -12,12 +13,12 @@ use Illuminate\Support\Carbon;
  *
  * Dijalankan oleh Scheduler setiap 2 menit.
  * Mendeteksi sopir yang sedang on_trip namun tidak mengirim
- * lokasi GPS dalam batas waktu yang dikonfigurasi.
+ * lokasi GPS dalam batas waktu yang dikonfigurasi di Pengaturan Web Admin.
  *
  * Alur:
  *  1. Query semua assignment berstatus `on_trip`
- *  2. Cek apakah last_ping_at melebihi HEARTBEAT_TIMEOUT_MINUTES
- *  3. Cek cooldown: skip jika heartbeat_alerted_at < HEARTBEAT_COOLDOWN_MINUTES yang lalu
+ *  2. Cek apakah last_ping_at melebihi batas toleransi (default 5 mnt / sesuai Pengaturan)
+ *  3. Cek cooldown: skip jika heartbeat_alerted_at < interval pengulangan (default 10 mnt / sesuai Pengaturan)
  *  4. Dispatch SendHeartbeatAlertJob ke queue
  */
 class CheckDriverHeartbeat extends Command
@@ -30,16 +31,17 @@ class CheckDriverHeartbeat extends Command
     public function handle(): int
     {
         /** @var int $timeoutMinutes Berapa menit diam sebelum dianggap hilang sinyal */
-        $timeoutMinutes  = (int) config('simventra.heartbeat.timeout_minutes', 5);
+        $timeoutMinutes  = CompanySetting::getHeartbeatTimeout();
 
         /** @var int $cooldownMinutes Minimum jeda antar alert ke assignment yang sama (anti-spam) */
-        $cooldownMinutes = (int) config('simventra.heartbeat.cooldown_minutes', 10);
+        $cooldownMinutes = CompanySetting::getHeartbeatCooldown();
 
         $isDryRun  = $this->option('dry-run');
         $cutoffAt  = now()->subMinutes($timeoutMinutes);
         $alertCount = 0;
 
-        $this->info("🔍 Memeriksa heartbeat sopir (timeout: {$timeoutMinutes} mnt, cooldown: {$cooldownMinutes} mnt)...");
+        $waActiveText = CompanySetting::isWaAlertEnabled() ? 'Aktif' : 'Nonaktif';
+        $this->info("🔍 Memeriksa heartbeat sopir (timeout: {$timeoutMinutes} mnt, cooldown: {$cooldownMinutes} mnt, WA Alert: {$waActiveText})...");
 
         // Ambil semua assignment yang sedang dalam perjalanan
         $assignments = VehicleAssignment::with(['driver', 'vehicle'])

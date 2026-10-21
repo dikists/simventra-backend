@@ -5,11 +5,39 @@
 
 <div>
     <!-- Page Header -->
-    <div class="page-header" style="margin-bottom:24px;">
+    <div class="page-header" style="margin-bottom:20px;">
         <div>
             <h1 class="page-title">Pengaturan Gudang / Pusat Distribusi</h1>
             <p class="page-subtitle">Atur nama, alamat, dan koordinat lokasi gudang utama. Klik di peta untuk memilih lokasi secara akurat.</p>
         </div>
+    </div>
+
+    <!-- Sub-Navigasi Pengaturan (Tabs) -->
+    <div style="display:flex;gap:8px;border-bottom:1px solid #e9ecef;margin-bottom:24px;padding-bottom:12px;overflow-x:auto;">
+        <a href="{{ route('settings.company') }}"
+           style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:8px;font-size:13.5px;font-weight:500;text-decoration:none;transition:all .15s;color:#74788d;background:#f8f9fa;">
+            <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
+            <span>Profil & Logo Perusahaan</span>
+        </a>
+
+        <a href="{{ route('settings.warehouse') }}"
+           style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:8px;font-size:13.5px;font-weight:600;text-decoration:none;transition:all .15s;color:#fff;background:#556ee6;box-shadow:0 2px 6px rgba(85,110,230,.3);">
+            <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span>Pengaturan Gudang & Koordinat</span>
+        </a>
+
+        <a href="{{ route('settings.alerts') }}"
+           style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:8px;font-size:13.5px;font-weight:500;text-decoration:none;transition:all .15s;color:#74788d;background:#f8f9fa;">
+            <svg style="width:16px;height:16px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span>Pengaturan Alert & Notifikasi WA</span>
+        </a>
     </div>
 
     <!-- Success Banner -->
